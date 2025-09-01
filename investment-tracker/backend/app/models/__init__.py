@@ -1,0 +1,22 @@
+from ..extensions import db
+from datetime import datetime
+
+class BaseModel(db.Model):
+    __abstract__ = True
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+from .platform import Platform
+from .security import Security
+from .transaction import Transaction
+from .price_history import PriceHistory
+from .holding import Holding
+from .dividend import Dividend
+
+__all__ = [
+    'Platform',
+    'Security',
+    'Transaction',
+    'PriceHistory',
+    'Holding',
+    'Dividend'
+]
