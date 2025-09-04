@@ -465,3 +465,98 @@ Your investment portfolio tracker is now running on your Raspberry Pi with:
 Access your portfolio at: `http://your-pi-ip-address`
 
 The system will continue to update prices automatically and maintain your portfolio data securely on your Raspberry Pi!
+
+## Deployment Guide
+
+### Prerequisites
+- Docker and Docker Compose
+- Git
+- 2GB+ RAM
+- 20GB+ storage
+
+### Quick Start
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/investment-tracker.git
+cd investment-tracker
+```
+
+2. Deploy the application:
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+To deploy with test data:
+```bash
+./deploy.sh --with-test-data
+```
+
+### Manual Deployment Steps
+
+1. Create environment file:
+```bash
+cat > .env << EOF
+POSTGRES_PASSWORD=your_secure_password
+FLASK_SECRET_KEY=your_secret_key
+EOF
+```
+
+2. Build and start services:
+```bash
+docker-compose build
+docker-compose up -d
+```
+
+3. Run migrations:
+```bash
+docker-compose exec backend flask db upgrade
+```
+
+### Directory Structure
+```
+investment-tracker/
+├── backend/           # Flask application
+├── frontend/         # React application
+├── nginx/           # Nginx configuration
+├── data/           # Data files
+├── tests/         # Test files
+└── docker-compose.yml
+```
+
+### Health Checks
+- Frontend: http://localhost
+- Backend API: http://localhost/api
+- Health Status: http://localhost/health
+
+### Monitoring
+Monitor logs:
+```bash
+docker-compose logs -f
+```
+
+### Backup
+Backup database:
+```bash
+docker-compose exec db pg_dump -U postgres investment_tracker > backup.sql
+```
+
+### Troubleshooting
+
+1. Services won't start:
+```bash
+docker-compose down
+docker-compose up -d
+```
+
+2. Database connection issues:
+```bash
+docker-compose logs db
+```
+
+3. Reset everything:
+```bash
+docker-compose down -v
+./deploy.sh
+```
