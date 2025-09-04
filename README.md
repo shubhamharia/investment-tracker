@@ -1,3 +1,26 @@
+# Investment Tracker
+
+A full-stack application to track investments, dividends, and portfolio performance across multiple platforms.
+
+## Features
+
+- Track investments across multiple platforms
+- Monitor dividend payments
+- View portfolio performance
+- Track transaction history
+- Real-time price updates
+- Dividend calendar
+- Portfolio analytics and insights
+
+## Tech Stack
+
+- Frontend: React, TypeScript, Material-UI
+- Backend: Python, Flask
+- Database: PostgreSQL
+- Cache: Redis
+- Task Queue: Celery
+- Data Source: Yahoo Finance API
+
 # Investment Portfolio Tracker - Setup Guide
 
 A comprehensive investment tracking system designed for Raspberry Pi deployment with multi-platform support, real-time price updates, and detailed analytics.
