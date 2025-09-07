@@ -1,4 +1,3 @@
-\api\portfolios.py
 from flask import Blueprint, jsonify, request
 from app.models import Portfolio
 from app.extensions import db
