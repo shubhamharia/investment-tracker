@@ -1,7 +1,7 @@
 from . import BaseModel
 from ..extensions import db
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Integer, String, ForeignKey
+from datetime import datetime
 
 class Portfolio(BaseModel):
     """
@@ -10,16 +10,15 @@ class Portfolio(BaseModel):
     """
     __tablename__ = 'portfolios'
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'))
-    name = Column(String(128), nullable=False)
-    description = Column(String(256), nullable=True)
-    updated_at = Column(db.DateTime, onupdate=db.func.current_timestamp())
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), nullable=False)
+    description = db.Column(db.String(256))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Define relationships
+    # Relationships
     user = relationship("User", back_populates="portfolios")
     holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
-    transactions = relationship("Transaction", back_populates="portfolio", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Portfolio {self.name}>'
@@ -27,9 +26,8 @@ class Portfolio(BaseModel):
     def to_dict(self):
         return {
             'id': self.id,
-            'user_id': self.user_id,
             'name': self.name,
             'description': self.description,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'user_id': self.user_id,
+            'created_at': self.created_at.isoformat()
         }
