@@ -11,13 +11,28 @@ class Config:
     @staticmethod
     def create_database(app):
         """Create the database if it doesn't exist."""
-        engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-        inspector = sqlalchemy.inspect(engine)
-        if not inspector.has_table("platform"):  # Check for any table
-            with app.app_context():
-                from .extensions import db
-                db.create_all()
-                print("Created database tables")
+        retries = 5
+        while retries > 0:
+            try:
+                engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+                inspector = sqlalchemy.inspect(engine)
+                
+                # Create tables if they don't exist
+                with app.app_context():
+                    from app.extensions import db
+                    db.create_all()
+                    print("Database tables ready")
+                return
+            except Exception as e:
+                if retries > 1:
+                    retries -= 1
+                    print(f"Database initialization failed. Retrying... ({retries} attempts left)")
+                    print(f"Error: {str(e)}")
+                    import time
+                    time.sleep(5)
+                else:
+                    print("Failed to initialize database after all retries")
+                    raise
 
 class DevelopmentConfig(Config):
     DEBUG = True
