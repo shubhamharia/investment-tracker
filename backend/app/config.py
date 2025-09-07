@@ -1,6 +1,7 @@
-# backend/app/config.py
 import os
 import sqlalchemy
+from sqlalchemy.exc import OperationalError
+import time
 
 class Config:
     """Base configuration."""
@@ -21,13 +22,24 @@ class Config:
     @staticmethod
     def create_database(app):
         """Create the database if it doesn't exist."""
-        engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-        inspector = sqlalchemy.inspect(engine)
-        if not inspector.has_table("users"):  # Check for any table
-            with app.app_context():
-                db = app.extensions['sqlalchemy'].db
-                db.create_all()
-                print("Created database tables")
+        retries = 5
+        while retries > 0:
+            try:
+                engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+                inspector = sqlalchemy.inspect(engine)
+                if not inspector.has_table("users"):
+                    with app.app_context():
+                        db = app.extensions['sqlalchemy'].db
+                        db.create_all()
+                        print("Created database tables")
+                return
+            except OperationalError as e:
+                if retries > 1:
+                    retries -= 1
+                    print(f"Database connection failed. Retrying... ({retries} attempts left)")
+                    time.sleep(5)
+                else:
+                    raise e
 
 class TestConfig(Config):
     """Testing configuration."""
