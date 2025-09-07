@@ -1,10 +1,9 @@
-import os
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 from .extensions import db
 from .config import Config
 
 def create_app(config_class=Config):
-    """Application factory function."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -20,6 +19,3 @@ def create_app(config_class=Config):
         return {'status': 'healthy'}
 
     return app
-
-# The final, crucial step: create the app instance for Gunicorn
-app = create_app()
