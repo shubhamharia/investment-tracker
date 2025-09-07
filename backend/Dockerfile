@@ -28,6 +28,10 @@ RUN mkdir -p /app/logs /app/data
 ENV FLASK_APP=app.py
 ENV PYTHONPATH=/app
 
+# Add entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Create non-root user
 RUN useradd -m -u 1000 portfolio && chown -R portfolio:portfolio /app
 USER portfolio
@@ -37,11 +41,7 @@ EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
-
-# Add entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+    CMD curl -f http://localhost:5000/api/health || exit 1
 
 # Default command
 CMD ["/usr/local/bin/docker-entrypoint.sh"]
