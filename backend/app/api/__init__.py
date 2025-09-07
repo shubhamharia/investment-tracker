@@ -7,3 +7,11 @@ from .portfolios import bp as portfolios_bp
 from .holdings import bp as holdings_bp
 
 __all__ = ['platforms', 'securities', 'transactions', 'users', 'portfolios', 'holdings']
+
+def init_app(app):
+    app.register_blueprint(platforms_bp)
+    app.register_blueprint(securities_bp)
+    app.register_blueprint(transactions_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(portfolios_bp)
+    app.register_blueprint(holdings_bp)
