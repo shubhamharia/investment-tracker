@@ -1,5 +1,6 @@
 # backend/app/config.py
 import os
+import sqlalchemy
 
 class Config:
     """Base configuration."""
@@ -16,6 +17,17 @@ class Config:
     # API
     API_TITLE = 'Investment Tracker API'
     API_VERSION = 'v1'
+
+    @staticmethod
+    def create_database(app):
+        """Create the database if it doesn't exist."""
+        engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+        inspector = sqlalchemy.inspect(engine)
+        if not inspector.has_table("users"):  # Check for any table
+            with app.app_context():
+                db = app.extensions['sqlalchemy'].db
+                db.create_all()
+                print("Created database tables")
 
 class TestConfig(Config):
     """Testing configuration."""
