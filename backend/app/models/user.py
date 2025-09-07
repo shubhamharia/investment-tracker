@@ -6,8 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(BaseModel):
     """
-    Represents a user of the investment tracking system.
-    Users can have multiple portfolios and manage their investments.
+    User model for authentication and profile management
     """
     __tablename__ = 'users'
 
@@ -19,22 +18,16 @@ class User(BaseModel):
     first_name = Column(String(64))
     last_name = Column(String(64))
 
-    # Define relationships
+    # Relationships
     portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
 
-    def __repr__(self):
-        return f'<User {self.username}>'
-
     def set_password(self, password):
-        """Set the user's password hash from a plain text password."""
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        """Check if the provided password matches the hash."""
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
-        """Convert user object to dictionary for JSON serialization."""
         return {
             'id': self.id,
             'username': self.username,
