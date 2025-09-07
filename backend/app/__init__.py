@@ -1,9 +1,7 @@
 import os
 from flask import Flask
-from config import Config  # Changed from `..config` to `config`
 from .extensions import db
-from .api import platforms, securities, transactions, users, portfolios, holdings
-from celery import Celery
+from .config import Config
 
 def create_app(config_class=Config):
     """Application factory function."""
@@ -13,19 +11,15 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
 
-    # Initialize and configure Celery
-    celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
-    celery.conf.update(app.config)
+    # Register blueprints
+    from .api import init_app as init_api
+    init_api(app)
 
-    # Register blueprints (API routes)
-    app.register_blueprint(platforms.bp)
-    app.register_blueprint(securities.bp)
-    app.register_blueprint(transactions.bp)
-    app.register_blueprint(users.bp)
-    app.register_blueprint(portfolios.bp)
-    app.register_blueprint(holdings.bp)
+    @app.route('/api/health')
+    def health_check():
+        return {'status': 'healthy'}
 
-    return app, celery
+    return app
 
 # The final, crucial step: create the app instance for Gunicorn
-app, celery = create_app()
+app = create_app()
