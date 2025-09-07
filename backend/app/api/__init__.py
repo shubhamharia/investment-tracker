@@ -1,7 +1,9 @@
 from flask import Blueprint
+from .platforms import bp as platforms_bp
+from .securities import bp as securities_bp
+from .transactions import bp as transactions_bp
+from .users import bp as users_bp
+from .portfolios import bp as portfolios_bp
+from .holdings import bp as holdings_bp
 
-dashboard_bp = Blueprint('dashboard', __name__)
-portfolio_bp = Blueprint('portfolio', __name__)
-transactions_bp = Blueprint('transactions', __name__)
-
-from . import dashboard, portfolio, transactions
+__all__ = ['platforms', 'securities', 'transactions', 'users', 'portfolios', 'holdings']
