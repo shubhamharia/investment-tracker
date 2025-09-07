@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from .config import Config
+from ..config import Config
 from .extensions import db, celery
 from .api import api_bp # It's a good practice to use the imported blueprint object directly
 
