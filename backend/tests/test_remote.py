@@ -1,7 +1,8 @@
 import requests
 import pytest
 
-BASE_URL = 'http://localhost:5000'  # Testing against local Docker container
+import os
+BASE_URL = os.environ.get('API_URL', 'http://localhost:5000')  # Can be overridden with environment variable
 
 @pytest.fixture
 def create_test_user():

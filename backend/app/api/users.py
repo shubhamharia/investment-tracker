@@ -27,18 +27,40 @@ def create_user():
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
 
+        # Check if user already exists
+        existing_user = User.query.filter_by(username=data['username']).first()
+        if existing_user:
+            return jsonify({"error": "Username already exists"}), 409
+
+        existing_email = User.query.filter_by(email=data['email']).first()
+        if existing_email:
+            return jsonify({"error": "Email already exists"}), 409
+
         new_user = User(
             username=data['username'],
             email=data['email']
         )
         new_user.set_password(data['password'])
-        db.session.add(new_user)
-        db.session.commit()
+        
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+        except Exception as db_error:
+            db.session.rollback()
+            print(f"Database error: {str(db_error)}")
+            return jsonify({"error": "Database error", "details": str(db_error)}), 500
+            
         return jsonify(new_user.to_dict()), 201
+        
     except Exception as e:
-        db.session.rollback()
-        print(f"Error creating user: {str(e)}")  # Add logging
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        print(f"Error creating user: {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full traceback
+        return jsonify({
+            "error": "Internal server error",
+            "type": type(e).__name__,
+            "details": str(e)
+        }), 500
 
 @bp.route('/<int:id>', methods=['PUT'])
 def update_user(id):
