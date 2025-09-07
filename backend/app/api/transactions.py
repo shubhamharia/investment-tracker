@@ -1,59 +1,51 @@
-from flask import jsonify, request
-from . import transactions_bp
-from ..models import Transaction, Security, Platform
-from ..services.constants import TRANSACTION_TYPES
-from ..extensions import db
-from datetime import datetime
+from flask import Blueprint, jsonify, request
+from app.models import Transaction
+from app.extensions import db
 
-@transactions_bp.route('/transactions', methods=['GET'])
+bp = Blueprint('transactions', __name__, url_prefix='/api/transactions')
+
+@bp.route('/', methods=['GET'])
 def get_transactions():
-    try:
-        transactions = (
-            Transaction.query
-            .join(Security)
-            .join(Platform)
-            .order_by(Transaction.transaction_date.desc())
-            .all()
-        )
-        
-        return jsonify({
-            'transactions': [{
-                'id': t.id,
-                'date': t.transaction_date.isoformat(),
-                'platform': t.platform.name,
-                'security': t.security.name,
-                'ticker': t.security.ticker,
-                'type': t.transaction_type,
-                'quantity': float(t.quantity),
-                'price': float(t.price_per_share),
-                'gross_amount': float(t.gross_amount),
-                'net_amount': float(t.net_amount)
-            } for t in transactions]
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    transactions = Transaction.query.all()
+    return jsonify([transaction.to_dict() for transaction in transactions])
 
-@transactions_bp.route('/transactions', methods=['POST'])
-def add_transaction():
-    try:
-        data = request.get_json()
-        
-        transaction = Transaction(
-            platform_id=data['platform_id'],
-            security_id=data['security_id'],
-            transaction_type=data['transaction_type'],
-            transaction_date=datetime.strptime(data['transaction_date'], '%Y-%m-%d').date(),
-            quantity=data['quantity'],
-            price_per_share=data['price_per_share'],
-            gross_amount=data['gross_amount'],
-            net_amount=data['net_amount'],
-            currency=data['currency']
-        )
-        
-        db.session.add(transaction)
-        db.session.commit()
-        
-        return jsonify({'message': 'Transaction added successfully', 'id': transaction.id})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+@bp.route('/<int:id>', methods=['GET'])
+def get_transaction(id):
+    transaction = Transaction.query.get_or_404(id)
+    return jsonify(transaction.to_dict())
+
+@bp.route('/', methods=['POST'])
+def create_transaction():
+    data = request.get_json()
+    transaction = Transaction(
+        portfolio_id=data['portfolio_id'],
+        security_id=data['security_id'],
+        transaction_type=data['transaction_type'],
+        quantity=data['quantity'],
+        price=data['price'],
+        transaction_date=data['transaction_date'],
+        fees=data.get('fees', 0.0)
+    )
+    db.session.add(transaction)
+    db.session.commit()
+    return jsonify(transaction.to_dict()), 201
+
+@bp.route('/<int:id>', methods=['PUT'])
+def update_transaction(id):
+    transaction = Transaction.query.get_or_404(id)
+    data = request.get_json()
+    
+    for field in ['portfolio_id', 'security_id', 'transaction_type', 
+                 'quantity', 'price', 'transaction_date', 'fees']:
+        if field in data:
+            setattr(transaction, field, data[field])
+    
+    db.session.commit()
+    return jsonify(transaction.to_dict())
+
+@bp.route('/<int:id>', methods=['DELETE'])
+def delete_transaction(id):
+    transaction = Transaction.query.get_or_404(id)
+    db.session.delete(transaction)
+    db.session.commit()
+    return '', 204
