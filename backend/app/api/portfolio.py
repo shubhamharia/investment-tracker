@@ -1,40 +1,40 @@
-from flask import jsonify, request
-from . import portfolio_bp
-from ..models import Holding, Security, Platform
-from ..services.portfolio_service import PortfolioService
-from ..extensions import db
+\api\portfolios.py
+from flask import Blueprint, jsonify, request
+from app.models import Portfolio
+from app.extensions import db
 
-@portfolio_bp.route('/portfolio', methods=['GET'])
-def get_portfolio():
-    try:
-        holdings = (
-            Holding.query
-            .join(Security)
-            .join(Platform)
-            .all()
-        )
-        
-        return jsonify({
-            'holdings': [{
-                'id': h.id,
-                'platform': h.platform.name,
-                'security': h.security.name,
-                'ticker': h.security.ticker,
-                'quantity': float(h.quantity),
-                'average_cost': float(h.average_cost),
-                'current_price': float(h.current_price) if h.current_price else None,
-                'current_value': float(h.current_value) if h.current_value else None,
-                'gain_loss': float(h.unrealized_gain_loss) if h.unrealized_gain_loss else None,
-                'gain_loss_pct': float(h.unrealized_gain_loss_pct) if h.unrealized_gain_loss_pct else None
-            } for h in holdings]
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+bp = Blueprint('portfolios', __name__, url_prefix='/api/portfolios')
 
-@portfolio_bp.route('/portfolio/refresh', methods=['POST'])
-def refresh_portfolio():
-    try:
-        PortfolioService.update_holdings()
-        return jsonify({'message': 'Portfolio refreshed successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+@bp.route('/', methods=['GET'])
+def get_portfolios():
+    portfolios = Portfolio.query.all()
+    return jsonify([portfolio.to_dict() for portfolio in portfolios])
+
+@bp.route('/<int:id>', methods=['GET'])
+def get_portfolio(id):
+    portfolio = Portfolio.query.get_or_404(id)
+    return jsonify(portfolio.to_dict())
+
+@bp.route('/', methods=['POST'])
+def create_portfolio():
+    data = request.get_json()
+    new_portfolio = Portfolio(**data)
+    db.session.add(new_portfolio)
+    db.session.commit()
+    return jsonify(new_portfolio.to_dict()), 201
+
+@bp.route('/<int:id>', methods=['PUT'])
+def update_portfolio(id):
+    portfolio = Portfolio.query.get_or_404(id)
+    data = request.get_json()
+    for key, value in data.items():
+        setattr(portfolio, key, value)
+    db.session.commit()
+    return jsonify(portfolio.to_dict())
+
+@bp.route('/<int:id>', methods=['DELETE'])
+def delete_portfolio(id):
+    portfolio = Portfolio.query.get_or_404(id)
+    db.session.delete(portfolio)
+    db.session.commit()
+    return '', 204

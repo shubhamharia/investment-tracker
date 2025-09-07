@@ -5,7 +5,7 @@ set -e  # Exit on any error
 # Colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-NC='\033[0m'
+NC='\033[0;31m'
 
 echo -e "${GREEN}Starting Investment Tracker deployment...${NC}"
 
@@ -18,30 +18,21 @@ FLASK_SECRET_KEY=$(openssl rand -base64 32)
 EOF
 fi
 
-# Run tests before deployment
-echo "Running backend tests..."
-cd backend
-python -m pytest
-cd ..
+# Load environment variables
+export $(cat .env | xargs)
 
 # Build and start services
 echo "Starting services..."
-docker-compose build
-docker-compose up -d
+docker-compose -f docker-compose.dev.yml build
+docker-compose -f docker-compose.dev.yml up -d
 
-# Wait for database to be ready
-echo "Waiting for database to be ready..."
-sleep 10
+# Wait for backend to be ready
+echo "Waiting for backend to be ready..."
+sleep 20
 
-# Run database migrations
-echo "Running database migrations..."
-docker-compose exec backend flask db upgrade
-
-# Import test data if specified
-if [ "$1" = "--with-test-data" ]; then
-    echo "Importing test data..."
-    docker-compose exec backend python -m pytest tests/test_master.py
-fi
+# Run backend tests inside the container
+echo "Running backend tests inside the container..."
+docker-compose exec backend python -m pytest
 
 echo -e "${GREEN}Deployment completed successfully!${NC}"
 
@@ -49,4 +40,4 @@ echo -e "${GREEN}Deployment completed successfully!${NC}"
 echo -e "\nAccess the application:"
 echo "Frontend: http://localhost"
 echo "API: http://localhost/api"
-echo "Health check: http://localhost/health"
+echo "Health check: http://localhost/api/health"
