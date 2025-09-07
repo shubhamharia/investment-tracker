@@ -27,8 +27,9 @@ class ProductionConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'postgresql://portfolio_user:portfolio_pass@localhost/portfolio_test_db'
-
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
+    
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
