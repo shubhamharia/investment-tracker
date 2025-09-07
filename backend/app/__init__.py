@@ -3,9 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from .extensions import db
 from .config import Config
 
-def create_app(config_class=Config):
+def create_app(config_name='default'):
     app = Flask(__name__)
-    app.config.from_object(config_class)
+    
+    if config_name == 'testing':
+        app.config.from_object('app.config.TestConfig')
+    else:
+        app.config.from_object('app.config.Config')
 
     # Initialize extensions
     db.init_app(app)

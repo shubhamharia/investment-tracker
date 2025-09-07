@@ -1,7 +1,7 @@
 import requests
 import pytest
 
-BASE_URL = 'http://your-raspberry-pi-ip'  # Replace with your Pi's IP address
+BASE_URL = 'http://localhost:5000'  # Testing against local Docker container
 
 def test_create_user():
     response = requests.post(f'{BASE_URL}/api/users/', json={
