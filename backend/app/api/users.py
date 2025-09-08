@@ -45,9 +45,16 @@ def create_user():
         try:
             db.session.add(new_user)
             db.session.commit()
+            return jsonify(new_user.to_dict()), 201
         except Exception as db_error:
             db.session.rollback()
-            print(f"Database error: {str(db_error)}")
+            import traceback
+            error_details = {
+                "error": str(db_error),
+                "traceback": traceback.format_exc()
+            }
+            print("Database error:", error_details)
+            return jsonify({"error": "Failed to create user", "details": str(db_error)}), 500
             return jsonify({"error": "Database error", "details": str(db_error)}), 500
             
         return jsonify(new_user.to_dict()), 201
