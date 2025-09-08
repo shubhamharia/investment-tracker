@@ -2,6 +2,8 @@ from decimal import Decimal
 from datetime import datetime
 from sqlalchemy import desc
 from . import db, BaseModel
+from .price_history import PriceHistory
+from .dividend import Dividend
 from ..services.constants import DECIMAL_PLACES
 
 class Security(BaseModel):
@@ -23,6 +25,7 @@ class Security(BaseModel):
     price_history = db.relationship('PriceHistory', backref='security', lazy=True)
     holdings = db.relationship('Holding', backref='security', lazy=True)
     dividends = db.relationship('Dividend', backref='security', lazy=True)
+    platform_mappings = db.relationship('SecurityMapping', backref='security', lazy=True)
     
     __table_args__ = (db.UniqueConstraint('ticker', 'exchange'),)
     
@@ -137,3 +140,64 @@ class Security(BaseModel):
             })
         
         return data
+
+
+class SecurityMapping(BaseModel):
+    """Map platform-specific security identifiers to master securities."""
+    __tablename__ = 'security_mappings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
+    security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
+    platform_symbol = db.Column(db.String(50), nullable=False)
+    platform_name = db.Column(db.String(200))
+    is_verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    verified_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    
+    # Relationships
+    platform = db.relationship('Platform', backref='security_mappings', lazy=True)
+    
+    __table_args__ = (db.UniqueConstraint('platform_id', 'platform_symbol'),)
+    
+    @classmethod
+    def get_or_create_mapping(cls, platform_id, platform_symbol, platform_name=None):
+        """Get existing mapping or create placeholder for user verification."""
+        mapping = cls.query.filter_by(
+            platform_id=platform_id,
+            platform_symbol=platform_symbol
+        ).first()
+        
+        if not mapping:
+            mapping = cls(
+                platform_id=platform_id,
+                platform_symbol=platform_symbol,
+                platform_name=platform_name,
+                is_verified=False
+            )
+            db.session.add(mapping)
+            db.session.commit()
+        
+        return mapping
+    
+    def verify_mapping(self, security_id):
+        """Verify the mapping with a security."""
+        self.security_id = security_id
+        self.is_verified = True
+        self.verified_at = datetime.utcnow()
+        db.session.commit()
+    
+    def to_dict(self):
+        """Convert mapping to dictionary."""
+        return {
+            'id': self.id,
+            'platform_id': self.platform_id,
+            'security_id': self.security_id if self.security_id else None,
+            'platform_symbol': self.platform_symbol,
+            'platform_name': self.platform_name,
+            'is_verified': self.is_verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'verified_at': self.verified_at.isoformat() if self.verified_at else None,
+            'notes': self.notes
+        }

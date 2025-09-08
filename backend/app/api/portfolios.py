@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request
-from app.models import Portfolio
+from datetime import datetime, timedelta
+from sqlalchemy import desc
+from app.models import Portfolio, PortfolioPerformance
 from app.extensions import db
 
 bp = Blueprint('portfolios', __name__, url_prefix='/api/portfolios')
