@@ -40,5 +40,7 @@ __all__ = [
     'Holding',
     'Dividend',
     'Portfolio',
+    'PortfolioPerformance',
+    'Transaction',
     'PortfolioPerformance'
 ]

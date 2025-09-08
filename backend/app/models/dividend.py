@@ -19,7 +19,7 @@ class Dividend(BaseModel):
     
     # Relationships
     platform = db.relationship('Platform', backref='dividends', lazy=True)
-    security = db.relationship('Security', backref='dividends', lazy=True)
+    security = db.relationship('Security', lazy=True)
     
     def validate(self):
         """Validate dividend data."""
