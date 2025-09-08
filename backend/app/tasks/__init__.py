@@ -1,1 +1,1 @@
-from .celery_tasks import update_prices, update_portfolio
+from .celery_tasks import update_security_prices, update_security_dividends
