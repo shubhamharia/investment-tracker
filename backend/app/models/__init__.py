@@ -30,7 +30,7 @@ from .holding import Holding
 from .price_history import PriceHistory
 from .transaction import Transaction
 from .dividend import Dividend
-from .portfolio import Portfolio
+from .portfolio import Portfolio, PortfolioPerformance
 
 __all__ = [
     'User',
@@ -39,5 +39,6 @@ __all__ = [
     'PriceHistory',
     'Holding',
     'Dividend',
-    'Portfolio' # <-- Added to the list of all available models
+    'Portfolio',
+    'PortfolioPerformance'
 ]
