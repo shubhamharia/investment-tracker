@@ -25,12 +25,13 @@ class Holding(BaseModel):
 
     def calculate_values(self):
         """Calculate current value and unrealized gain/loss"""
+        from decimal import Decimal, ROUND_HALF_UP
         if self.current_price is not None and self.quantity is not None:
             self.current_value = self.current_price * self.quantity
             if self.total_cost:
                 self.unrealized_gain_loss = self.current_value - self.total_cost
                 if self.total_cost > 0:
-                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost) * 100
+                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
