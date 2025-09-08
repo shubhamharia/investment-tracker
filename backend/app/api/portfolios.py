@@ -37,3 +37,15 @@ def delete_portfolio(id):
     db.session.delete(portfolio)
     db.session.commit()
     return '', 204
+
+@bp.route('/<int:id>/value', methods=['GET'])
+def get_portfolio_value(id):
+    try:
+        portfolio = Portfolio.query.get_or_404(id)
+        value = sum(holding.current_value for holding in portfolio.holdings)
+        return jsonify({
+            'portfolio_id': portfolio.id,
+            'value': value
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

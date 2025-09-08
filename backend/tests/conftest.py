@@ -57,7 +57,7 @@ def test_security(db_session):
 def test_platform(db_session):
     platform = Platform(
         name='Test Platform',
-        description='Test trading platform'
+        account_type='Trading'
     )
     db_session.session.add(platform)
     db_session.session.commit()
