@@ -7,7 +7,8 @@ def test_security(db_session):
     security = Security(
         ticker='AAPL',
         name='Apple Inc.',
-        instrument_type='stock'
+        instrument_type='stock',
+        currency='USD'
     )
     db_session.session.add(security)
     db_session.session.commit()

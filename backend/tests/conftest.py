@@ -1,4 +1,5 @@
 import pytest
+from decimal import Decimal
 from app import create_app
 from app.extensions import db
 from app.models.user import User
@@ -20,7 +21,7 @@ def client(app):
 def db_session(app):
     with app.app_context():
         db.create_all()
-        yield db
+        yield db.session
         db.session.remove()
         db.drop_all()
 
@@ -51,7 +52,8 @@ def test_security(db_session):
     security = Security(
         ticker='AAPL',
         name='Apple Inc.',
-        instrument_type='stock'
+        instrument_type='stock',
+        currency='USD'
     )
     db_session.session.add(security)
     db_session.session.commit()
@@ -61,7 +63,8 @@ def test_security(db_session):
 def test_platform(db_session):
     platform = Platform(
         name='Test Platform',
-        account_type='Trading'
+        account_type='Trading',
+        currency='GBP'
     )
     db_session.session.add(platform)
     db_session.session.commit()
@@ -73,9 +76,9 @@ def test_holding(db_session, test_portfolio, test_security, test_platform):
         portfolio=test_portfolio,
         security=test_security,
         platform=test_platform,
-        quantity=10.0,
-        average_cost=150.00,
-        total_cost=1500.00
+        quantity=Decimal('10.0'),
+        average_cost=Decimal('150.00'),
+        total_cost=Decimal('1500.00')
     )
     db_session.session.add(holding)
     db_session.session.commit()
