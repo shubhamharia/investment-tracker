@@ -4,7 +4,7 @@ from sqlalchemy import desc
 from . import db, BaseModel
 from .price_history import PriceHistory
 from .dividend import Dividend
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES, CURRENCY_CODES, INSTRUMENT_TYPES
 
 class Security(BaseModel):
     __tablename__ = 'securities'
@@ -15,9 +15,20 @@ class Security(BaseModel):
     name = db.Column(db.String(200))
     sector = db.Column(db.String(100))
     exchange = db.Column(db.String(50))
-    currency = db.Column(db.String(3))
+    currency = db.Column(db.String(3), nullable=False)
     instrument_type = db.Column(db.String(20))
     country = db.Column(db.String(2))
+    
+    def validate(self):
+        """Validate security data."""
+        if not self.currency or self.currency not in CURRENCY_CODES:
+            raise ValueError(f"Currency must be one of {CURRENCY_CODES}")
+        if not self.ticker:
+            raise ValueError("Ticker is required")
+        if not self.name:
+            raise ValueError("Name is required")
+        if self.instrument_type and self.instrument_type not in INSTRUMENT_TYPES.values():
+            raise ValueError(f"Instrument type must be one of {list(INSTRUMENT_TYPES.values())}")
     yahoo_symbol = db.Column(db.String(20))
     
     # Relationships

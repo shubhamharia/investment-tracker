@@ -4,7 +4,7 @@ from ..extensions import db
 from sqlalchemy.orm import relationship
 from sqlalchemy import desc
 from datetime import datetime, date, timedelta
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES, CURRENCY_CODES
 from .dividend import Dividend
 from .holding import Holding
 
@@ -25,6 +25,27 @@ class PortfolioPerformance(BaseModel):
     
     # Relationships
     portfolio = relationship("Portfolio", back_populates="performance_history")
+
+    def validate(self):
+        """Validate portfolio performance data."""
+        if not self.portfolio_id:
+            raise ValueError("Portfolio is required")
+        if not self.date:
+            raise ValueError("Date is required")
+        if not self.total_value:
+            raise ValueError("Total value is required")
+        if not self.currency or self.currency not in CURRENCY_CODES:
+            raise ValueError(f"Currency must be one of {CURRENCY_CODES}")
+        if self.cash_value is None:
+            raise ValueError("Cash value is required")
+        if self.invested_value is None:
+            raise ValueError("Invested value is required")
+        if self.total_gain_loss is None:
+            raise ValueError("Total gain/loss is required")
+        if self.daily_gain_loss is None:
+            raise ValueError("Daily gain/loss is required")
+        if self.dividend_income is None:
+            raise ValueError("Dividend income is required")
 
     def calculate_performance_metrics(self, previous_performance=None):
         """Calculate performance metrics including daily changes."""
@@ -74,7 +95,18 @@ class Portfolio(BaseModel):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     initial_value = db.Column(db.Numeric(15, 4), default=0)
-    base_currency = db.Column(db.String(3), default='USD')
+    base_currency = db.Column(db.String(3), default=CURRENCY_CODES[0])  # USD is first in CURRENCY_CODES
+
+    def validate(self):
+        """Validate portfolio data."""
+        if not self.name:
+            raise ValueError("Portfolio name is required")
+        if not self.user_id:
+            raise ValueError("User is required")
+        if not self.base_currency or self.base_currency not in CURRENCY_CODES:
+            raise ValueError(f"Base currency must be one of {CURRENCY_CODES}")
+        if self.initial_value is None or self.initial_value < 0:
+            raise ValueError("Initial value cannot be negative")
 
     # Relationships
     user = relationship("User", back_populates="portfolios")

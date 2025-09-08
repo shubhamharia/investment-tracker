@@ -1,6 +1,6 @@
 from decimal import Decimal
 from . import db, BaseModel
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES, CURRENCY_CODES
 
 class Dividend(BaseModel):
     __tablename__ = 'dividends'
@@ -21,6 +21,23 @@ class Dividend(BaseModel):
     platform = db.relationship('Platform', backref='dividends', lazy=True)
     security = db.relationship('Security', backref='dividends', lazy=True)
     
+    def validate(self):
+        """Validate dividend data."""
+        if not self.platform_id:
+            raise ValueError("Platform is required")
+        if not self.security_id:
+            raise ValueError("Security is required")
+        if not self.ex_date:
+            raise ValueError("Ex-date is required")
+        if not self.dividend_per_share or self.dividend_per_share <= 0:
+            raise ValueError("Dividend per share must be positive")
+        if not self.quantity_held or self.quantity_held <= 0:
+            raise ValueError("Quantity held must be positive")
+        if self.withholding_tax < 0:
+            raise ValueError("Withholding tax cannot be negative")
+        if not self.currency or self.currency not in CURRENCY_CODES:
+            raise ValueError(f"Currency must be one of {CURRENCY_CODES}")
+
     def calculate_amounts(self):
         """Calculate gross and net dividend amounts."""
         try:

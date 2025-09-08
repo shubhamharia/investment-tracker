@@ -2,7 +2,7 @@ import pytest
 from decimal import Decimal
 from datetime import date, timedelta
 from app.models import PriceHistory, Security
-from app.services.constants import DECIMAL_PLACES
+from app.constants import DECIMAL_PLACES
 
 def test_price_history_creation(db_session):
     """Test basic price history creation."""

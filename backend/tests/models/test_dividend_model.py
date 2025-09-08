@@ -2,7 +2,7 @@ import pytest
 from decimal import Decimal
 from datetime import date
 from app.models import Dividend, Security, Platform
-from app.services.constants import DECIMAL_PLACES
+from app.constants import DECIMAL_PLACES
 
 def test_dividend_creation(db_session):
     """Test basic dividend creation."""

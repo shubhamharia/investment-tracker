@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from decimal import Decimal
 from app.models import Transaction, Holding
 from app.extensions import db
-from app.services.constants import DECIMAL_PLACES, VALID_TRANSACTION_TYPES
+from app.constants import DECIMAL_PLACES, TRANSACTION_TYPES as VALID_TRANSACTION_TYPES
 
 bp = Blueprint('transactions', __name__, url_prefix='/api/transactions')
 

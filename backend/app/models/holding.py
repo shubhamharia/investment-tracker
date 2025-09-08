@@ -1,6 +1,8 @@
 from . import db, BaseModel
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy.orm import relationship
+from ..constants import DECIMAL_PLACES
 
 class Holding(BaseModel):
     __tablename__ = 'holdings'
@@ -23,11 +25,28 @@ class Holding(BaseModel):
     
     __table_args__ = (db.UniqueConstraint('platform_id', 'security_id'),)
 
+    def validate(self):
+        """Validate holding data."""
+        if not self.portfolio_id:
+            raise ValueError("Portfolio is required")
+        if not self.platform_id:
+            raise ValueError("Platform is required")
+        if not self.security_id:
+            raise ValueError("Security is required")
+        if not self.quantity or self.quantity <= 0:
+            raise ValueError("Quantity must be positive")
+        if not self.average_cost or self.average_cost <= 0:
+            raise ValueError("Average cost must be positive")
+        if not self.total_cost or self.total_cost <= 0:
+            raise ValueError("Total cost must be positive")
+        if self.current_price is not None and self.current_price <= 0:
+            raise ValueError("Current price must be positive if provided")
+
     def calculate_values(self):
         """Calculate current value and unrealized gain/loss"""
-        from decimal import Decimal, ROUND_HALF_UP
         if self.current_price is not None and self.quantity is not None:
-            self.current_value = self.current_price * self.quantity
+            self.current_value = (Decimal(str(self.current_price)) * 
+                                Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             if self.total_cost:
                 self.unrealized_gain_loss = self.current_value - self.total_cost
                 if self.total_cost > 0:

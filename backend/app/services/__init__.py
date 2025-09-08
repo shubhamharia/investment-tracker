@@ -1,2 +1,4 @@
 from ..extensions import db
-from ..models import Security, PriceHistory, Holding, Transaction, Platform, Dividend, Portfolio, User
+
+# Avoid circular imports by importing only what's needed in each service file
+# Services should import their required models directly

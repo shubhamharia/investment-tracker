@@ -2,7 +2,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from sqlalchemy import desc
 from . import db, BaseModel
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES
 
 class PriceHistory(BaseModel):
     __tablename__ = 'price_history'

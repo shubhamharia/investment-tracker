@@ -4,7 +4,7 @@ from decimal import Decimal
 from . import dashboard_bp
 from ..services.portfolio_service import PortfolioService
 from ..models import Holding, Security, Platform
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES
 
 @dashboard_bp.route('/dashboard', methods=['GET'])
 def get_dashboard_data():

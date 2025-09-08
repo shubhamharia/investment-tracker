@@ -1,7 +1,11 @@
 import pytest
 from app import create_app
 from app.extensions import db
-from app.models import User, Portfolio, Security, Platform, Holding
+from app.models.user import User
+from app.models.portfolio import Portfolio
+from app.models.security import Security
+from app.models.platform import Platform
+from app.models.holding import Holding
 
 @pytest.fixture
 def app():

@@ -1,14 +1,14 @@
 from decimal import Decimal
 from . import db, BaseModel
-from ..services.constants import DECIMAL_PLACES
+from ..constants import DECIMAL_PLACES, CURRENCY_CODES, ACCOUNT_TYPES
 
 class Platform(BaseModel):
     __tablename__ = 'platforms'
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    account_type = db.Column(db.String(50))
-    currency = db.Column(db.String(3), default='GBP')
+    account_type = db.Column(db.String(50), default=ACCOUNT_TYPES['GIA'])  # General Investment Account as default
+    currency = db.Column(db.String(3), default=CURRENCY_CODES[2])  # GBP is third in CURRENCY_CODES
     trading_fee_fixed = db.Column(db.Numeric(10, 4), default=0)
     trading_fee_percentage = db.Column(db.Numeric(5, 4), default=0)
     fx_fee_percentage = db.Column(db.Numeric(5, 4), default=0)

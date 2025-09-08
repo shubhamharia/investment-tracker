@@ -1,7 +1,7 @@
 from decimal import Decimal
 from . import db, BaseModel
 from datetime import datetime
-from ..services.constants import DECIMAL_PLACES, VALID_TRANSACTION_TYPES
+from ..constants import DECIMAL_PLACES, TRANSACTION_TYPES as VALID_TRANSACTION_TYPES, CURRENCY_CODES
 
 class Transaction(BaseModel):
     __tablename__ = 'transactions'
@@ -63,8 +63,8 @@ class Transaction(BaseModel):
         if self.price_per_share <= 0:
             raise ValueError("Price must be positive")
         
-        if not self.currency:
-            raise ValueError("Currency is required")
+        if not self.currency or self.currency not in CURRENCY_CODES:
+            raise ValueError(f"Currency must be one of {CURRENCY_CODES}")
         
         if self.fx_rate <= 0:
             raise ValueError("FX rate must be positive")
