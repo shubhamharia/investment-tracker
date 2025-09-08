@@ -4,6 +4,8 @@
 
 The backend provides a RESTful API for managing user accounts, portfolios, securities, transactions, and other investment-related data.
 
+For a detailed technical overview of capabilities, limitations, and test coverage, see [TECHNICAL_REPORT.md](TECHNICAL_REPORT.md).
+
 ## Tech Stack
 
 *   Python 3.11+

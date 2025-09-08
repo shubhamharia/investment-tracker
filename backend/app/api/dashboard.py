@@ -1,7 +1,10 @@
 from flask import jsonify
+from sqlalchemy import func
+from decimal import Decimal
 from . import dashboard_bp
 from ..services.portfolio_service import PortfolioService
 from ..models import Holding, Security, Platform
+from ..services.constants import DECIMAL_PLACES
 
 @dashboard_bp.route('/dashboard', methods=['GET'])
 def get_dashboard_data():
@@ -29,9 +32,11 @@ def get_dashboard_data():
                 {
                     'platform': h.name,
                     'account_type': h.account_type,
-                    'value': float(h.total_value)
+                    'value': str(Decimal(str(h.total_value)).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}')))
                 } for h in holdings_by_platform
             ]
         })
+    except ValueError as e:
+        return jsonify({'error': 'Invalid data format', 'details': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500

@@ -1,4 +1,8 @@
+from decimal import Decimal
+from datetime import datetime
+from sqlalchemy import desc
 from . import db, BaseModel
+from ..services.constants import DECIMAL_PLACES
 
 class Security(BaseModel):
     __tablename__ = 'securities'
@@ -18,5 +22,118 @@ class Security(BaseModel):
     transactions = db.relationship('Transaction', backref='security', lazy=True)
     price_history = db.relationship('PriceHistory', backref='security', lazy=True)
     holdings = db.relationship('Holding', backref='security', lazy=True)
+    dividends = db.relationship('Dividend', backref='security', lazy=True)
     
     __table_args__ = (db.UniqueConstraint('ticker', 'exchange'),)
+    
+    def get_current_price(self):
+        """Get the most recent price for the security."""
+        latest_price = (self.price_history
+                       .order_by(desc(PriceHistory.price_date))
+                       .first())
+        return latest_price.close_price if latest_price else None
+    
+    def calculate_market_cap(self):
+        """Calculate market capitalization if shares outstanding is available."""
+        try:
+            current_price = self.get_current_price()
+            if not current_price or not hasattr(self, 'shares_outstanding'):
+                return None
+            
+            market_cap = (Decimal(str(current_price)) * 
+                         Decimal(str(self.shares_outstanding))
+                         ).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            return market_cap
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Error calculating market cap: {str(e)}")
+    
+    def calculate_yield(self, period_days=365):
+        """Calculate dividend yield based on recent dividends."""
+        try:
+            current_price = self.get_current_price()
+            if not current_price:
+                return Decimal('0')
+            
+            # Get dividends for the last period
+            cutoff_date = datetime.now().date()
+            recent_dividends = (Dividend.query
+                              .filter_by(security_id=self.id)
+                              .filter(Dividend.ex_date >= cutoff_date)
+                              .all())
+            
+            if not recent_dividends:
+                return Decimal('0')
+            
+            # Sum up dividends
+            total_dividends = sum(Decimal(str(d.dividend_per_share)) for d in recent_dividends)
+            
+            # Calculate yield
+            if Decimal(str(current_price)) > 0:
+                dividend_yield = ((total_dividends / Decimal(str(current_price))) * 100
+                                ).quantize(Decimal('0.01'))
+                return dividend_yield
+            return Decimal('0')
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Error calculating yield: {str(e)}")
+    
+    def get_price_change(self, days=365):
+        """Calculate price change over a period."""
+        try:
+            current_price = self.get_current_price()
+            if not current_price:
+                return None, None
+            
+            # Get historical price
+            cutoff_date = datetime.now().date()
+            historical_price = (PriceHistory.query
+                              .filter_by(security_id=self.id)
+                              .filter(PriceHistory.price_date <= cutoff_date)
+                              .order_by(desc(PriceHistory.price_date))
+                              .first())
+            
+            if not historical_price:
+                return None, None
+            
+            price_change = (Decimal(str(current_price)) - 
+                          Decimal(str(historical_price.close_price))
+                          ).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            if Decimal(str(historical_price.close_price)) > 0:
+                change_pct = ((price_change / Decimal(str(historical_price.close_price))) * 100
+                             ).quantize(Decimal('0.01'))
+            else:
+                change_pct = Decimal('0')
+            
+            return price_change, change_pct
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Error calculating price change: {str(e)}")
+    
+    def to_dict(self, include_metrics=False):
+        """Convert security record to dictionary."""
+        data = {
+            'id': self.id,
+            'ticker': self.ticker,
+            'isin': self.isin,
+            'name': self.name,
+            'sector': self.sector,
+            'exchange': self.exchange,
+            'currency': self.currency,
+            'instrument_type': self.instrument_type,
+            'country': self.country,
+            'yahoo_symbol': self.yahoo_symbol
+        }
+        
+        if include_metrics:
+            current_price = self.get_current_price()
+            price_change, change_pct = self.get_price_change()
+            
+            data.update({
+                'current_price': str(current_price) if current_price else None,
+                'price_change': str(price_change) if price_change is not None else None,
+                'price_change_pct': str(change_pct) if change_pct is not None else None,
+                'dividend_yield': str(self.calculate_yield()),
+                'market_cap': str(self.calculate_market_cap()) if self.calculate_market_cap() else None
+            })
+        
+        return data
