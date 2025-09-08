@@ -19,7 +19,6 @@ class Dividend(BaseModel):
     
     # Relationships
     platform = db.relationship('Platform', backref='dividends', lazy=True)
-    security = db.relationship('Security', lazy=True)
     
     def validate(self):
         """Validate dividend data."""
@@ -49,7 +48,7 @@ class Dividend(BaseModel):
             self.net_dividend = (self.gross_dividend - 
                                Decimal(str(self.withholding_tax))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             
-        except (ValueError, TypeError, decimal.InvalidOperation) as e:
+        except (ValueError, TypeError, Decimal.InvalidOperation) as e:
             raise ValueError(f"Error calculating dividend amounts: {str(e)}")
     
     def to_dict(self):

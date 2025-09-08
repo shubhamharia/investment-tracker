@@ -18,6 +18,25 @@ class User(BaseModel):
     first_name = Column(String(64))
     last_name = Column(String(64))
 
+    def set_password(self, password):
+        """Set the user's password hash"""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Check if the provided password matches the hash"""
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        """Convert user to dictionary representation"""
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'is_active': self.is_active,
+            'first_name': self.first_name,
+            'last_name': self.last_name
+        }
+
     # Relationships
     portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
 
