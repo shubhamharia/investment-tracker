@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from .extensions import db
 from .config import Config
@@ -10,6 +10,18 @@ def create_app(config_name='default'):
         app.config.from_object('app.config.TestConfig')
     else:
         app.config.from_object('app.config.Config')
+
+    @app.errorhandler(Exception)
+    def handle_error(error):
+        print(f"Unhandled error: {str(error)}")  # Log the error
+        import traceback
+        traceback.print_exc()  # Print stack trace
+        response = {
+            "error": "Internal server error",
+            "message": str(error),
+            "type": type(error).__name__
+        }
+        return jsonify(response), 500
 
     # Initialize extensions
     db.init_app(app)

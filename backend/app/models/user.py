@@ -28,12 +28,16 @@ class User(BaseModel):
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'is_active': self.is_active,
-            'first_name': self.first_name,
-            'last_name': self.last_name,
-            'created_at': self.created_at.isoformat()
-        }
+        try:
+            return {
+                'id': self.id,
+                'username': self.username,
+                'email': self.email,
+                'is_active': self.is_active,
+                'first_name': self.first_name,
+                'last_name': self.last_name,
+                'created_at': self.created_at.isoformat() if self.created_at else None
+            }
+        except Exception as e:
+            print(f"Error in to_dict(): {str(e)}")
+            raise
