@@ -46,8 +46,33 @@ def update_holding(id):
         holding = Holding.query.get_or_404(id)
         data = request.get_json()
         
+        from decimal import Decimal
+        
+        # Convert numeric fields to Decimal
         if 'quantity' in data:
-            data['quantity'] = float(data['quantity'])
+            data['quantity'] = Decimal(str(data['quantity']))
+        if 'average_cost' in data:
+            data['average_cost'] = Decimal(str(data['average_cost']))
+            
+        # Update total_cost if both quantity and average_cost are present
+        if 'quantity' in data and 'average_cost' in data:
+            data['total_cost'] = data['quantity'] * data['average_cost']
+        elif 'quantity' in data:
+            data['total_cost'] = data['quantity'] * holding.average_cost
+        elif 'average_cost' in data:
+            data['total_cost'] = holding.quantity * data['average_cost']
+            
+        # Update holding fields
+        for key, value in data.items():
+            setattr(holding, key, value)
+            
+        holding.calculate_values()
+        db.session.commit()
+        
+        return jsonify(holding.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
         if 'average_cost' in data:
             data['average_cost'] = float(data['average_cost'])
         if 'total_cost' in data:

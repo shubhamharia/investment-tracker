@@ -22,3 +22,33 @@ class Holding(BaseModel):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('platform_id', 'security_id'),)
+
+    def calculate_values(self):
+        """Calculate current value and unrealized gain/loss"""
+        if self.current_price is not None and self.quantity is not None:
+            self.current_value = self.current_price * self.quantity
+            if self.total_cost:
+                self.unrealized_gain_loss = self.current_value - self.total_cost
+                if self.total_cost > 0:
+                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost) * 100
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calculate_values()
+
+    def to_dict(self):
+        self.calculate_values()
+        return {
+            'id': self.id,
+            'portfolio_id': self.portfolio_id,
+            'security_id': self.security_id,
+            'platform_id': self.platform_id,
+            'quantity': float(self.quantity) if self.quantity else None,
+            'average_cost': float(self.average_cost) if self.average_cost else None,
+            'total_cost': float(self.total_cost) if self.total_cost else None,
+            'current_price': float(self.current_price) if self.current_price else None,
+            'current_value': float(self.current_value) if self.current_value else None,
+            'unrealized_gain_loss': float(self.unrealized_gain_loss) if self.unrealized_gain_loss else None,
+            'unrealized_gain_loss_pct': float(self.unrealized_gain_loss_pct) if self.unrealized_gain_loss_pct else None,
+            'last_updated': self.last_updated.isoformat() if self.last_updated else None
+        }
