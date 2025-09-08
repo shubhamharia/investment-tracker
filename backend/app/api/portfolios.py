@@ -42,10 +42,42 @@ def delete_portfolio(id):
 def get_portfolio_value(id):
     try:
         portfolio = Portfolio.query.get_or_404(id)
-        value = sum(holding.current_value or 0 for holding in portfolio.holdings)
+        total_value = sum(holding.current_value or 0 for holding in portfolio.holdings)
+        total_cost = sum(holding.total_cost or 0 for holding in portfolio.holdings)
         return jsonify({
             'portfolio_id': portfolio.id,
-            'total_value': value
+            'total_value': total_value,
+            'total_cost': total_cost
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@bp.route('/<int:id>/holdings', methods=['POST'])
+def add_holding(id):
+    try:
+        portfolio = Portfolio.query.get_or_404(id)
+        data = request.get_json()
+        
+        # Add portfolio_id to the data
+        data['portfolio_id'] = portfolio.id
+        
+        # Convert numeric fields
+        if 'quantity' in data:
+            data['quantity'] = float(data['quantity'])
+        if 'average_cost' in data:
+            data['average_cost'] = float(data['average_cost'])
+        
+        # Calculate total_cost
+        data['total_cost'] = data['quantity'] * data['average_cost']
+        
+        from app.models import Holding
+        new_holding = Holding(**data)
+        db.session.add(new_holding)
+        db.session.commit()
+        return jsonify(new_holding.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

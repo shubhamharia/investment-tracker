@@ -17,6 +17,7 @@ def get_user(id):
 @bp.route('/', methods=['POST'])
 def create_user():
     data = request.get_json()
+    print(f"Received data: {data}")
     if not data:
         return jsonify({"error": "No input data provided"}), 400
         
@@ -41,9 +42,11 @@ def create_user():
             email=data['email']
         )
         new_user.set_password(data['password'])
+        print(f"Created user object: {new_user.to_dict()}")
         
         db.session.add(new_user)
         db.session.commit()
+        print(f"User committed to database: {new_user.to_dict()}")
         return jsonify(new_user.to_dict()), 201
     except Exception as e:
         db.session.rollback()

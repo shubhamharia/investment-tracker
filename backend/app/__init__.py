@@ -25,6 +25,9 @@ def create_app(config_name='default'):
 
     # Initialize extensions
     db.init_app(app)
+    
+    with app.app_context():
+        db.create_all()  # Create tables for all models
 
     # Register blueprints
     from .api import init_app as init_api
