@@ -5,9 +5,9 @@ from decimal import Decimal
 @pytest.fixture
 def test_security(db_session):
     security = Security(
-        symbol='AAPL',
+        ticker='AAPL',
         name='Apple Inc.',
-        type='stock'
+        instrument_type='stock'
     )
     db_session.session.add(security)
     db_session.session.commit()

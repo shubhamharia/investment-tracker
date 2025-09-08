@@ -42,10 +42,10 @@ def delete_portfolio(id):
 def get_portfolio_value(id):
     try:
         portfolio = Portfolio.query.get_or_404(id)
-        value = sum(holding.current_value for holding in portfolio.holdings)
+        value = sum(holding.current_value or 0 for holding in portfolio.holdings)
         return jsonify({
             'portfolio_id': portfolio.id,
-            'value': value
+            'total_value': value
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
