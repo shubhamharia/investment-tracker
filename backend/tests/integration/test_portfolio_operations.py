@@ -34,7 +34,9 @@ def test_portfolio_rebalancing_workflow(db_session, test_portfolio):
             security_id=security.id,
             platform_id=platform.id,
             quantity=qty,
-            currency='USD'
+            currency='USD',  # Match platform's currency
+            average_cost=price,  # Add missing required fields
+            total_cost=qty * price  # Add missing required fields
         )
         db_session.add(holding)
         

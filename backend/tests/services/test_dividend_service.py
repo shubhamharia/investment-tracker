@@ -36,6 +36,7 @@ def test_fetch_dividend_data(db_session, mock_yahoo_finance):
         security=security,
         platform=platform,
         quantity=Decimal('100'),
+        currency='USD',  # Set to match platform's currency
         average_cost=Decimal('150.00'),
         total_cost=Decimal('15000.00')
     )
@@ -75,6 +76,7 @@ def test_update_all_dividends(db_session, mock_yahoo_finance):
         security=security1,
         platform=platform,
         quantity=Decimal('100'),
+        currency='USD',  # Set to match platform's currency
         average_cost=Decimal('150.00'),
         total_cost=Decimal('15000.00')
     )
@@ -83,6 +85,7 @@ def test_update_all_dividends(db_session, mock_yahoo_finance):
         security=security2,
         platform=platform,
         quantity=Decimal('50'),
+        currency='USD',  # Set to match platform's currency
         average_cost=Decimal('200.00'),
         total_cost=Decimal('10000.00')
     )
@@ -118,6 +121,7 @@ def test_duplicate_dividend_prevention(db_session, mock_yahoo_finance):
         security=security,
         platform=platform,
         quantity=Decimal('100'),
+        currency='USD',  # Set to match platform's currency
         average_cost=Decimal('150.00'),
         total_cost=Decimal('15000.00')
     )

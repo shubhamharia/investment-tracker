@@ -32,6 +32,7 @@ def test_create_holding(db_session, test_portfolio, test_security, test_platform
         security=test_security,
         platform=test_platform,
         quantity=Decimal('10.0'),
+        currency=test_platform.currency,  # Use the platform's currency
         average_cost=Decimal('150.00'),
         total_cost=Decimal('1500.00')
     )
@@ -49,6 +50,7 @@ def test_holding_value_calculation(db_session, test_portfolio, test_security, te
         security=test_security,
         platform=test_platform,
         quantity=Decimal('10.0'),
+        currency=test_platform.currency,  # Use the platform's currency
         average_cost=Decimal('150.00'),
         total_cost=Decimal('1500.00'),
         current_price=Decimal('160.00')

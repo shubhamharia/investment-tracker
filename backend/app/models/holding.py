@@ -54,6 +54,16 @@ class Holding(BaseModel):
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def __init__(self, *args, **kwargs):
+        if 'platform' in kwargs and 'currency' not in kwargs:
+            # Get currency from platform if not provided
+            kwargs['currency'] = kwargs['platform'].currency
+        elif 'platform_id' in kwargs and 'currency' not in kwargs:
+            # Get the platform and set its currency
+            from .platform import Platform
+            platform = Platform.query.get(kwargs['platform_id'])
+            if platform:
+                kwargs['currency'] = platform.currency
+        
         super().__init__(*args, **kwargs)
         self.calculate_values()
 

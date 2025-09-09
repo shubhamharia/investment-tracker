@@ -27,11 +27,13 @@ def create_holding():
             if field not in data:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
 
-        # Convert numeric fields
-        data['quantity'] = float(data['quantity'])
-        data['average_cost'] = float(data['average_cost'])
+        from decimal import Decimal
+        # Convert numeric fields to Decimal
+        data['quantity'] = Decimal(str(data['quantity']))
+        data['average_cost'] = Decimal(str(data['average_cost']))
         data['total_cost'] = data['quantity'] * data['average_cost']
 
+        # Create the holding - currency will be set from platform automatically
         new_holding = Holding(**data)
         db.session.add(new_holding)
         db.session.commit()
