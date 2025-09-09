@@ -13,7 +13,10 @@ class DividendService:
         try:
             ticker = yf.Ticker(security.yahoo_symbol)
             # Get dividend data for the last year
-            dividends = ticker.actions.get('Dividends', pd.Series()).to_frame()
+            dividends_df = getattr(ticker.actions, 'Dividends', None)
+            if dividends_df is None:
+                dividends_df = getattr(ticker, 'dividends', pd.Series())
+            dividends = pd.DataFrame({'Dividends': dividends_df})
             if dividends.empty:
                 logging.info(f"No dividend data found for {security.yahoo_symbol}")
                 return []

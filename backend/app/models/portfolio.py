@@ -97,6 +97,37 @@ class Portfolio(BaseModel):
     initial_value = db.Column(db.Numeric(15, 4), default=0)
     base_currency = db.Column(db.String(3), default=CURRENCY_CODES[0])  # USD is first in CURRENCY_CODES
 
+    def calculate_total_value(self):
+        """Calculate the total current value of all holdings."""
+        total = Decimal('0')
+        for holding in self.holdings:
+            holding.calculate_values()
+            if holding.current_value:
+                total += holding.current_value
+        return total.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+
+    def update_performance(self):
+        """Update portfolio performance metrics."""
+        from . import PortfolioPerformance
+        
+        current_value = self.calculate_total_value()
+        performance = PortfolioPerformance(
+            portfolio_id=self.id,
+            value_date=datetime.utcnow().date(),
+            total_value=current_value
+        )
+        
+        # Calculate gain/loss
+        if self.initial_value:
+            performance.gain_loss = current_value - self.initial_value
+            if self.initial_value > 0:
+                performance.gain_loss_pct = (performance.gain_loss / self.initial_value * 100).quantize(Decimal('0.01'))
+            else:
+                performance.gain_loss_pct = Decimal('0')
+        
+        db.session.add(performance)
+        return performance
+
     def validate(self):
         """Validate portfolio data."""
         if not self.name:

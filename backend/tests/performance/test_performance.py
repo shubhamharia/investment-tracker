@@ -146,16 +146,15 @@ def test_portfolio_performance_calculation_performance(db_session):
     duration = end_time - start_time
     assert duration < 2.0  # Should complete in less than 2 seconds
 
-def test_concurrent_transaction_processing(db_session):
+def test_concurrent_transaction_processing(db_session, app):
     """Test performance of concurrent transaction processing"""
     from concurrent.futures import ThreadPoolExecutor
     from threading import Lock
-    
-    portfolio = create_test_data(db_session, scale=10)  # Smaller scale for concurrent test
-    security = Security.query.first()
-    platform = Platform.query.first()
-    
-    def create_transaction(i):
+
+    with app.app_context():
+        portfolio = create_test_data(db_session, scale=10)  # Smaller scale for concurrent test
+        security = Security.query.first()
+        platform = Platform.query.first()    def create_transaction(i):
         """Create a single transaction"""
         with Lock():
             transaction = Transaction(
