@@ -10,8 +10,8 @@ def test_security(db_session):
         instrument_type='stock',
         currency='USD'
     )
-    db_session.session.add(security)
-    db_session.session.commit()
+    db_session.add(security)
+    db_session.commit()
     return security
 
 @pytest.fixture
@@ -21,8 +21,8 @@ def test_platform(db_session):
         account_type='Trading',
         currency='GBP'
     )
-    db_session.session.add(platform)
-    db_session.session.commit()
+    db_session.add(platform)
+    db_session.commit()
     return platform
 
 def test_create_holding(db_session, test_portfolio, test_security, test_platform):
@@ -36,8 +36,8 @@ def test_create_holding(db_session, test_portfolio, test_security, test_platform
         average_cost=Decimal('150.00'),
         total_cost=Decimal('1500.00')
     )
-    db_session.session.add(holding)
-    db_session.session.commit()
+    db_session.add(holding)
+    db_session.commit()
     
     assert holding.id is not None
     assert holding.quantity == Decimal('10.0')
@@ -55,8 +55,8 @@ def test_holding_value_calculation(db_session, test_portfolio, test_security, te
         total_cost=Decimal('1500.00'),
         current_price=Decimal('160.00')
     )
-    db_session.session.add(holding)
-    db_session.session.commit()
+    db_session.add(holding)
+    db_session.commit()
     
     # Test current value calculation
     assert holding.current_value == Decimal('1600.00')

@@ -9,9 +9,6 @@ class Transaction(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.calculate_amounts()
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
     transaction_type = db.Column(db.String(10), nullable=False)  # BUY, SELL, DIVIDEND
@@ -28,24 +25,38 @@ class Transaction(BaseModel):
     notes = db.Column(db.Text)
     
     def __init__(self, *args, **kwargs):
-        if 'fx_rate' not in kwargs:
-            kwargs['fx_rate'] = 1
+        # Set defaults for numeric fields
+        defaults = {
+            'fx_rate': 1,
+            'trading_fees': 0,
+            'stamp_duty': 0,
+            'fx_fees': 0
+        }
+        
+        # Apply defaults if not provided
+        for field, default in defaults.items():
+            if field not in kwargs:
+                kwargs[field] = default
+                
         super().__init__(*args, **kwargs)
         self.calculate_amounts()
     
     def calculate_amounts(self):
         """Calculate transaction amounts including fees."""
         try:
-            # Convert values to Decimal
+            # Convert values to Decimal and ensure defaults
             quantity = Decimal(str(self.quantity))
             price = Decimal(str(self.price_per_share))
-            fx_rate = Decimal(str(self.fx_rate))
+            fx_rate = Decimal(str(self.fx_rate or 1))
+            self.trading_fees = Decimal('0') if self.trading_fees is None else Decimal(str(self.trading_fees))
+            self.stamp_duty = Decimal('0') if self.stamp_duty is None else Decimal(str(self.stamp_duty))
+            self.fx_fees = Decimal('0') if self.fx_fees is None else Decimal(str(self.fx_fees))
             
             # Calculate gross amount in transaction currency
             self.gross_amount = (quantity * price).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             
             # Get platform fees
-            if self.platform:
+            if self.platform and not (self.trading_fees or self.fx_fees or self.stamp_duty):
                 self.trading_fees = self.platform.calculate_trading_fees(self.gross_amount)
                 self.fx_fees = self.platform.calculate_fx_fees(self.gross_amount) if self.currency != self.platform.currency else Decimal('0')
                 self.stamp_duty = self.platform.calculate_stamp_duty(self.gross_amount)

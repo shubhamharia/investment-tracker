@@ -149,7 +149,7 @@ def test_multi_currency_data_consistency(db_session, test_portfolio):
         Security(ticker='SAP', name='SAP SE', currency='EUR', yahoo_symbol='SAP.DE')
     ]
     platform = Platform(name='Test Platform', currency='USD')
-    db_session.add_all([securities + [platform]])
+    db_session.add_all(securities + [platform])
     db_session.commit()
     
     # Create holdings and transactions in different currencies

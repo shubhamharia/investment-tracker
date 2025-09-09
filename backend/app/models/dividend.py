@@ -9,6 +9,8 @@ class Dividend(BaseModel):
         if 'withholding_tax' not in kwargs:
             kwargs['withholding_tax'] = Decimal('0')
         super().__init__(*args, **kwargs)
+        self.validate()
+        self.calculate_amounts()
     
     id = db.Column(db.Integer, primary_key=True)
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
@@ -33,7 +35,7 @@ class Dividend(BaseModel):
             raise ValueError("Security is required")
         if not self.ex_date:
             raise ValueError("Ex-date is required")
-        if not self.dividend_per_share or self.dividend_per_share <= 0:
+        if not self.dividend_per_share or Decimal(str(self.dividend_per_share)) <= 0:
             raise ValueError("Dividend per share must be positive")
         if not self.quantity_held or self.quantity_held <= 0:
             raise ValueError("Quantity held must be positive")

@@ -9,10 +9,17 @@ from app.services.dividend_service import DividendService
 @pytest.fixture
 def mock_yahoo_finance():
     with patch('yfinance.Ticker') as mock_ticker:
-        # Create mock dividend data
-        dates = pd.date_range(start='2025-01-01', end='2025-12-31', periods=4)
-        dividends = pd.Series([0.88, 0.88, 0.88, 0.88], index=dates)
+        # Create mock dividend data with explicit dates for quarterly dividends
+        dates = [
+            pd.Timestamp('2025-01-15'),
+            pd.Timestamp('2025-04-15'),
+            pd.Timestamp('2025-07-15'),
+            pd.Timestamp('2025-10-15')
+        ]
+        amounts = [0.88] * 4
+        dividends = pd.Series(amounts, index=dates, name='Dividends')
         mock_ticker.return_value.actions = pd.DataFrame({'Dividends': dividends})
+        mock_ticker.return_value.dividends = dividends  # Add direct dividends attribute
         yield mock_ticker
 
 def test_fetch_dividend_data(db_session, mock_yahoo_finance):

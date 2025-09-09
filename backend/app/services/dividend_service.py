@@ -19,28 +19,31 @@ class DividendService:
                 return []
             
             dividend_list = []
-            for date, row in dividends.iterrows():
+            # Process dates in reverse chronological order
+            for date, row in dividends.iloc[::-1].iterrows():
                 dividend_amount = row['Dividends']
-                # Get holdings that existed on dividend date
+                # Get unique platforms from holdings that existed on dividend date
                 holdings = Holding.query.filter_by(security_id=security.id)\
-                    .filter(Holding.created_at <= date).all()
+                    .filter(Holding.created_at <= date)\
+                    .with_entities(Holding.platform_id, Holding.quantity)\
+                    .distinct().all()
                 
-                for holding in holdings:
+                for platform_id, quantity in holdings:
                     # Check if dividend already recorded
                     existing_dividend = Dividend.query.filter_by(
                         security_id=security.id,
-                        platform_id=holding.platform_id,
+                        platform_id=platform_id,
                         ex_date=date.date()
                     ).first()
                     
                     if not existing_dividend:
                         dividend = Dividend(
                             security_id=security.id,
-                            platform_id=holding.platform_id,
+                            platform_id=platform_id,
                             ex_date=date.date(),
                             pay_date=date.date() + timedelta(days=15),  # Estimated pay date
                             dividend_per_share=Decimal(str(dividend_amount)),
-                            quantity_held=holding.quantity,
+                            quantity_held=quantity,
                             currency=security.currency
                         )
                         dividend.calculate_amounts()
