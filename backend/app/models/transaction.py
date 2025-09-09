@@ -7,6 +7,7 @@ class Transaction(BaseModel):
     __tablename__ = 'transactions'
     
     id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
     transaction_type = db.Column(db.String(10), nullable=False)  # BUY, SELL, DIVIDEND

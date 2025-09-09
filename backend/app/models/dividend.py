@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from . import db, BaseModel
 from ..constants import DECIMAL_PLACES, CURRENCY_CODES
 
@@ -48,7 +48,7 @@ class Dividend(BaseModel):
             self.net_dividend = (self.gross_dividend - 
                                Decimal(str(self.withholding_tax))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             
-        except (ValueError, TypeError, Decimal.InvalidOperation) as e:
+        except (ValueError, TypeError, InvalidOperation) as e:
             raise ValueError(f"Error calculating dividend amounts: {str(e)}")
     
     def to_dict(self):

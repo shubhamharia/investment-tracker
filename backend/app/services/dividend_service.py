@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas as pd
 from datetime import datetime, timedelta
 from decimal import Decimal
 from ..models import Security, Dividend, Holding

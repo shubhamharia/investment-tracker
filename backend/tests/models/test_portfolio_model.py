@@ -9,8 +9,8 @@ def test_create_portfolio(db_session, test_user):
         description='Test Description',
         user=test_user
     )
-    db_session.session.add(portfolio)
-    db_session.session.commit()
+    db_session.add(portfolio)
+    db_session.commit()
     
     assert portfolio.id is not None
     assert portfolio.name == 'Test Portfolio'
@@ -23,8 +23,8 @@ def test_portfolio_holdings(db_session, test_user):
         description='Long-term investments',
         user=test_user
     )
-    db_session.session.add(portfolio)
-    db_session.session.commit()
+    db_session.add(portfolio)
+    db_session.commit()
     
     # Test will be expanded when we implement holdings
 
