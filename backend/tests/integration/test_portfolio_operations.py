@@ -45,8 +45,8 @@ def test_portfolio_rebalancing_workflow(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=qty,
-            price=price,
-            fee=Decimal('9.99'),
+            price_per_share=price,
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 1)
         )
@@ -86,8 +86,8 @@ def test_portfolio_rebalancing_workflow(db_session, test_portfolio):
                 platform_id=platform.id,
                 transaction_type='SELL',
                 quantity=shares_to_sell.quantize(Decimal('0.00')),
-                price=holding.current_price,
-                fee=Decimal('9.99'),
+                price_per_share=holding.current_price,
+                trading_fees=Decimal('9.99'),
                 currency='USD',
                 transaction_date=date(2025, 1, 2)
             )
@@ -101,8 +101,8 @@ def test_portfolio_rebalancing_workflow(db_session, test_portfolio):
                 platform_id=platform.id,
                 transaction_type='BUY',
                 quantity=shares_to_buy.quantize(Decimal('0.00')),
-                price=holding.current_price,
-                fee=Decimal('9.99'),
+                price_per_share=holding.current_price,
+                trading_fees=Decimal('9.99'),
                 currency='USD',
                 transaction_date=date(2025, 1, 2)
             )
@@ -164,8 +164,8 @@ def test_currency_conversion_workflow(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=qty,
-            price=price,
-            fee=Decimal('9.99'),
+            price_per_share=price,
+            trading_fees=Decimal('9.99'),
             currency=currency,
             transaction_date=date(2025, 1, 1)
         )
@@ -229,8 +229,8 @@ def test_corporate_action_workflow(db_session, test_portfolio):
         platform_id=platform.id,
         transaction_type='BUY',
         quantity=initial_quantity,
-        price=pre_split_price,
-        fee=Decimal('9.99'),
+        price_per_share=pre_split_price,
+        trading_fees=Decimal('9.99'),
         currency='USD',
         transaction_date=date(2025, 1, 1)
     )
@@ -268,8 +268,8 @@ def test_corporate_action_workflow(db_session, test_portfolio):
         platform_id=platform.id,
         transaction_type='SPLIT',
         quantity=holding.quantity - initial_quantity,  # Additional shares from split
-        price=post_split_price,
-        fee=Decimal('0'),  # No fee for splits
+        price_per_share=post_split_price,
+        trading_fees=Decimal('0'),  # No fee for splits
         currency='USD',
         transaction_date=date(2025, 1, 2)
     )

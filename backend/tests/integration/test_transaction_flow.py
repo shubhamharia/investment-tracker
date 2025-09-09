@@ -19,8 +19,8 @@ def test_transaction_creates_holding(db_session, test_portfolio):
         platform_id=platform.id,
         transaction_type='BUY',
         quantity=Decimal('100'),
-        price=Decimal('150.00'),
-        fee=Decimal('9.99'),
+        price_per_share=Decimal('150.00'),
+        trading_fees=Decimal('9.99'),
         currency='USD',
         transaction_date=date(2025, 1, 1)
     )
@@ -53,8 +53,8 @@ def test_multiple_transactions_update_holding(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('100'),
-            price=Decimal('200.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('200.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 1)
         ),
@@ -64,8 +64,8 @@ def test_multiple_transactions_update_holding(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('50'),
-            price=Decimal('210.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('210.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 2)
         ),
@@ -75,8 +75,8 @@ def test_multiple_transactions_update_holding(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='SELL',
             quantity=Decimal('30'),
-            price=Decimal('220.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('220.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 3)
         )
@@ -111,8 +111,8 @@ def test_cost_basis_calculation(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('100'),
-            price=Decimal('100.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('100.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 1)
         ),
@@ -122,8 +122,8 @@ def test_cost_basis_calculation(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('50'),
-            price=Decimal('120.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('120.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 2)
         )
@@ -163,8 +163,8 @@ def test_portfolio_value_updates(db_session, test_portfolio):
         platform_id=platform.id,
         transaction_type='BUY',
         quantity=Decimal('1000'),
-        price=Decimal('1.00'),
-        fee=Decimal('9.99'),
+        price_per_share=Decimal('1.00'),
+        trading_fees=Decimal('9.99'),
         currency='GBP',
         transaction_date=date(2025, 1, 1)
     )
@@ -192,8 +192,8 @@ def test_transaction_validation(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='SELL',
             quantity=Decimal('100'),  # Try to sell when no holdings exist
-            price=Decimal('150.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('150.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 1)
         )

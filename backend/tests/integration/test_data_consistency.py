@@ -24,8 +24,8 @@ def test_portfolio_holding_transaction_consistency(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('100'),
-            price=Decimal('150.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('150.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 1)
         ),
@@ -36,8 +36,8 @@ def test_portfolio_holding_transaction_consistency(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('50'),
-            price=Decimal('160.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('160.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 2)
         ),
@@ -48,8 +48,8 @@ def test_portfolio_holding_transaction_consistency(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='SELL',
             quantity=Decimal('30'),
-            price=Decimal('170.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('170.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
             transaction_date=date(2025, 1, 3)
         )
@@ -171,8 +171,8 @@ def test_multi_currency_data_consistency(db_session, test_portfolio):
             platform_id=platform.id,
             transaction_type='BUY',
             quantity=Decimal('100'),
-            price=Decimal('100.00'),
-            fee=Decimal('9.99'),
+            price_per_share=Decimal('100.00'),
+            trading_fees=Decimal('9.99'),
             currency=security.currency,
             transaction_date=date(2025, 1, 1)
         )

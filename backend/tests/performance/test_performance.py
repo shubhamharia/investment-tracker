@@ -65,8 +65,8 @@ def create_test_data(db_session, scale=100):
                 platform_id=platform.id,
                 transaction_type='BUY',
                 quantity=Decimal('10'),
-                price=Decimal('100.00'),
-                fee=Decimal('9.99'),
+                price_per_share=Decimal('100.00'),
+                trading_fees=Decimal('9.99'),
                 currency='USD',
                 transaction_date=datetime.now().date() - timedelta(days=j)
             )
@@ -162,8 +162,8 @@ def test_concurrent_transaction_processing(db_session):
                 platform_id=platform.id,
                 transaction_type='BUY',
                 quantity=Decimal('10'),
-                price=Decimal('100.00'),
-                fee=Decimal('9.99'),
+                price_per_share=Decimal('100.00'),
+                trading_fees=Decimal('9.99'),
                 currency='USD',
                 transaction_date=datetime.now().date()
             )

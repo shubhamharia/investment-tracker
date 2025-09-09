@@ -33,19 +33,19 @@ def create_transaction():
         
         # Convert price and fees to Decimal
         try:
-            price = Decimal(str(data['price'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-            fees = Decimal(str(data.get('fees', '0.0'))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            price_per_share = Decimal(str(data['price_per_share'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            trading_fees = Decimal(str(data.get('trading_fees', '0.0'))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
         except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid price or fees format'}), 400
-        
+                return jsonify({'error': 'Invalid price_per_share or trading_fees format'}), 400
+
         transaction = Transaction(
             portfolio_id=data['portfolio_id'],
             security_id=data['security_id'],
             transaction_type=data['transaction_type'],
             quantity=Decimal(str(data['quantity'])),
-            price=price,
+            price_per_share=price_per_share,
             transaction_date=data['transaction_date'],
-            fees=fees
+            trading_fees=trading_fees
         )
         
         db.session.add(transaction)
@@ -79,17 +79,17 @@ def update_transaction(id):
             return jsonify({'error': 'Invalid transaction type'}), 400
         
         # Handle numeric fields with proper decimal conversion
-        if 'price' in data:
+        if 'price_per_share' in data:
             try:
-                data['price'] = Decimal(str(data['price'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                data['price_per_share'] = Decimal(str(data['price_per_share'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid price format'}), 400
+                return jsonify({'error': 'Invalid price_per_share format'}), 400
         
-        if 'fees' in data:
+        if 'trading_fees' in data:
             try:
-                data['fees'] = Decimal(str(data['fees'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                data['trading_fees'] = Decimal(str(data['trading_fees'])).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid fees format'}), 400
+                return jsonify({'error': 'Invalid trading_fees format'}), 400
         
         if 'quantity' in data:
             try:
@@ -99,7 +99,7 @@ def update_transaction(id):
         
         # Update fields
         for field in ['portfolio_id', 'security_id', 'transaction_type', 
-                     'quantity', 'price', 'transaction_date', 'fees']:
+                     'quantity', 'price_per_share', 'transaction_date', 'trading_fees']:
             if field in data:
                 setattr(transaction, field, data[field])
         
