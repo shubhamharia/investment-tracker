@@ -1,6 +1,6 @@
 from . import db, BaseModel
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy.orm import relationship
 from ..constants import DECIMAL_PLACES
 
@@ -15,6 +15,7 @@ class Holding(BaseModel):
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
     quantity = db.Column(db.Numeric(15, 8), nullable=False)
+    currency = db.Column(db.String(3), nullable=False)
     average_cost = db.Column(db.Numeric(15, 8), nullable=False)
     total_cost = db.Column(db.Numeric(15, 4), nullable=False)
     current_price = db.Column(db.Numeric(15, 8))
@@ -53,6 +54,8 @@ class Holding(BaseModel):
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def __init__(self, *args, **kwargs):
+        if 'withholding_tax' not in kwargs:
+            kwargs['withholding_tax'] = Decimal('0')
         super().__init__(*args, **kwargs)
         self.calculate_values()
 

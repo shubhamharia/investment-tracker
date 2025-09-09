@@ -35,8 +35,8 @@ def test_portfolio_value_calculation(db_session, test_user):
         description='Testing value calculations',
         user=test_user
     )
-    db_session.session.add(portfolio)
-    db_session.session.commit()
+    db_session.add(portfolio)
+    db_session.commit()
     
     # Test will be expanded when we implement value calculations
 
@@ -45,8 +45,8 @@ def test_user_portfolios_relationship(db_session, test_user):
     portfolio1 = Portfolio(name='Portfolio 1', user=test_user)
     portfolio2 = Portfolio(name='Portfolio 2', user=test_user)
     
-    db_session.session.add_all([portfolio1, portfolio2])
-    db_session.session.commit()
+    db_session.add_all([portfolio1, portfolio2])
+    db_session.commit()
     
     assert len(test_user.portfolios) == 2
     assert test_user.portfolios[0].name in ['Portfolio 1', 'Portfolio 2']

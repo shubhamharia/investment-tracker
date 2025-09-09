@@ -8,8 +8,8 @@ def test_create_user(db_session):
         email='test@example.com'
     )
     user.set_password('password123')
-    db_session.session.add(user)
-    db_session.session.commit()
+    db_session.add(user)
+    db_session.commit()
     
     assert user.id is not None
     assert user.username == 'testuser'
@@ -26,11 +26,11 @@ def test_unique_username(db_session):
     """Test username uniqueness constraint"""
     user1 = User(username='testuser', email='test1@test.com')
     user1.set_password('test')
-    db_session.session.add(user1)
-    db_session.session.commit()
+    db_session.add(user1)
+    db_session.commit()
 
     user2 = User(username='testuser', email='test2@test.com')
     user2.set_password('test')
-    db_session.session.add(user2)
+    db_session.add(user2)
     with pytest.raises(Exception):  # Should raise integrity error
-        db_session.session.commit()
+        db_session.commit()
