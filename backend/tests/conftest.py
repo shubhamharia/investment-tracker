@@ -21,8 +21,9 @@ def client(app):
 def db_session(app):
     with app.app_context():
         db.create_all()
-        yield db.session
-        db.session.remove()
+        db_session = db.session
+        yield db_session
+        db_session.remove()
         db.drop_all()
 
 @pytest.fixture
@@ -32,8 +33,8 @@ def test_user(db_session):
         email='test@example.com'
     )
     user.set_password('password123')
-    db_session.session.add(user)
-    db_session.session.commit()
+    db_session.add(user)
+    db_session.commit()
     return user
 
 @pytest.fixture
@@ -43,8 +44,8 @@ def test_portfolio(db_session, test_user):
         description='Test Description',
         user=test_user
     )
-    db_session.session.add(portfolio)
-    db_session.session.commit()
+    db_session.add(portfolio)
+    db_session.commit()
     return portfolio
 
 @pytest.fixture
@@ -55,8 +56,8 @@ def test_security(db_session):
         instrument_type='stock',
         currency='USD'
     )
-    db_session.session.add(security)
-    db_session.session.commit()
+    db_session.add(security)
+    db_session.commit()
     return security
 
 @pytest.fixture
@@ -66,8 +67,8 @@ def test_platform(db_session):
         account_type='Trading',
         currency='GBP'
     )
-    db_session.session.add(platform)
-    db_session.session.commit()
+    db_session.add(platform)
+    db_session.commit()
     return platform
 
 @pytest.fixture
@@ -80,6 +81,6 @@ def test_holding(db_session, test_portfolio, test_security, test_platform):
         average_cost=Decimal('150.00'),
         total_cost=Decimal('1500.00')
     )
-    db_session.session.add(holding)
-    db_session.session.commit()
+    db_session.add(holding)
+    db_session.commit()
     return holding

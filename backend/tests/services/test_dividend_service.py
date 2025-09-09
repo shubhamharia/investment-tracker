@@ -28,7 +28,8 @@ def test_fetch_dividend_data(db_session, mock_yahoo_finance):
         security_id=security.id,
         platform_id=platform.id,
         quantity=Decimal('100'),
-        currency='USD'
+        average_cost=Decimal('150.00'),
+        total_cost=Decimal('15000.00')
     )
     db_session.add(holding)
     db_session.commit()

@@ -8,6 +8,16 @@ from sqlalchemy import text
 
 def create_test_data(db_session, scale=100):
     """Create test data for performance testing"""
+    # Create test user first
+    from app.models.user import User
+    user = User(
+        username='testuser',
+        email='test@example.com'
+    )
+    user.set_password('password123')
+    db_session.add(user)
+    db_session.commit()
+
     # Create securities
     securities = []
     for i in range(scale):
@@ -24,10 +34,11 @@ def create_test_data(db_session, scale=100):
     platform = Platform(name='Test Platform', currency='USD')
     db_session.add(platform)
     
-    # Create portfolio
+    # Create portfolio with user
     portfolio = Portfolio(
         name='Test Portfolio',
         description='Performance Test Portfolio',
+        user=user,
         base_currency='USD'
     )
     db_session.add(portfolio)
