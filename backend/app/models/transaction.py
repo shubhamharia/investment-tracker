@@ -40,7 +40,12 @@ class Transaction(BaseModel):
                 
         super().__init__(*args, **kwargs)
         self.calculate_amounts()
-        self.update_holding()
+        self.validate()  # Validate before updating holding
+        try:
+            self.update_holding()
+        except Exception as e:
+            db.session.rollback()
+            raise ValueError(f"Failed to update holding: {str(e)}")
     
     def calculate_amounts(self):
         """Calculate transaction amounts including fees."""
@@ -92,6 +97,16 @@ class Transaction(BaseModel):
         if self.fx_rate <= 0:
             raise ValueError("FX rate must be positive")
 
+        # Validate sell transactions
+        if self.transaction_type == 'SELL':
+            from . import Holding
+            holding = Holding.query.filter_by(
+                portfolio_id=self.portfolio_id,
+                security_id=self.security_id
+            ).first()
+            if not holding or holding.quantity < self.quantity:
+                raise ValueError("Cannot sell more shares than held")
+
         # For sell transactions, verify enough shares are held
         if self.transaction_type == 'SELL':
             from . import Holding
@@ -110,39 +125,45 @@ class Transaction(BaseModel):
             security_id=self.security_id
         ).first()
 
-        if not holding:
-            # Create new holding
-            holding = Holding(
-                portfolio_id=self.portfolio_id,
-                security_id=self.security_id,
-                platform_id=self.platform_id,
-                quantity=Decimal('0'),
-                currency=self.currency,
-                average_cost=Decimal('0'),
-                total_cost=Decimal('0')
-            )
-            db.session.add(holding)
-
-        # Update quantity and costs based on transaction type
         if self.transaction_type == 'BUY':
-            # Calculate new average cost
-            total_value = (holding.quantity * holding.average_cost) + self.net_amount
-            new_quantity = holding.quantity + self.quantity
-            holding.average_cost = (total_value / new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-            holding.quantity = new_quantity
-            holding.total_cost = total_value.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            if not holding:
+                # Create new holding for buy transaction
+                holding = Holding(
+                    portfolio_id=self.portfolio_id,
+                    security_id=self.security_id,
+                    platform_id=self.platform_id,
+                    quantity=self.quantity,
+                    currency=self.currency,
+                    average_cost=self.price_per_share,
+                    total_cost=self.net_amount
+                )
+                db.session.add(holding)
+            else:
+                # Update existing holding for buy
+                total_value = (holding.quantity * holding.average_cost) + self.net_amount
+                new_quantity = holding.quantity + self.quantity
+                holding.average_cost = (total_value / new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                holding.quantity = new_quantity
+                holding.total_cost = total_value.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+
         elif self.transaction_type == 'SELL':
+            if not holding or holding.quantity < self.quantity:
+                raise ValueError("Cannot sell more shares than held")
+                
             # Reduce quantity but keep average cost the same
             holding.quantity = holding.quantity - self.quantity
-            if holding.quantity < 0:
-                raise ValueError("Cannot sell more shares than held")
             holding.total_cost = (holding.quantity * holding.average_cost).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            if holding.quantity == 0:
+                db.session.delete(holding)
+                return
         
         # Update current price if available
         if hasattr(self.security, 'current_price') and self.security.current_price:
             holding.current_price = self.security.current_price
-        
-        holding.calculate_values()
+            
+        if holding:
+            holding.calculate_values()
 
     def to_dict(self):
         """Convert transaction record to dictionary."""

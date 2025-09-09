@@ -128,6 +128,40 @@ class Portfolio(BaseModel):
         db.session.add(performance)
         return performance
 
+    def calculate_total_value(self):
+        """Calculate the total current value of all holdings."""
+        total = Decimal('0')
+        for holding in self.holdings:
+            holding.calculate_values()
+            if holding.current_value:
+                total += holding.current_value
+        return total.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+
+    def update_performance(self):
+        """Update portfolio performance metrics."""
+        from . import PortfolioPerformance
+        current_value = self.calculate_total_value()
+        
+        # Create new performance record
+        performance = PortfolioPerformance(
+            portfolio_id=self.id,
+            value_date=datetime.utcnow().date(),
+            total_value=current_value,
+            gain_loss=Decimal('0'),
+            gain_loss_pct=Decimal('0')
+        )
+        
+        # Calculate gain/loss if we have an initial value
+        if self.initial_value:
+            performance.gain_loss = current_value - self.initial_value
+            if self.initial_value > 0:
+                performance.gain_loss_pct = (performance.gain_loss / self.initial_value * 100)\
+                    .quantize(Decimal('0.01'))
+        
+        db.session.add(performance)
+        db.session.commit()
+        return performance
+
     def validate(self):
         """Validate portfolio data."""
         if not self.name:

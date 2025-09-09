@@ -150,27 +150,50 @@ def test_concurrent_transaction_processing(db_session, app):
     """Test performance of concurrent transaction processing"""
     from concurrent.futures import ThreadPoolExecutor
     from threading import Lock
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import scoped_session, sessionmaker
 
+    # Create test data within app context
     with app.app_context():
         portfolio = create_test_data(db_session, scale=10)  # Smaller scale for concurrent test
         security = Security.query.first()
-        platform = Platform.query.first()    def create_transaction(i):
+        platform = Platform.query.first()
+        
+        # Store IDs for use in threads
+        portfolio_id = portfolio.id
+        security_id = security.id
+        platform_id = platform.id
+
+    # Create a new engine and session factory for threads
+    engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+    session_factory = sessionmaker(bind=engine)
+    Session = scoped_session(session_factory)
+
+    def create_transaction(i):
         """Create a single transaction"""
-        with Lock():
-            transaction = Transaction(
-                portfolio_id=portfolio.id,
-                security_id=security.id,
-                platform_id=platform.id,
-                transaction_type='BUY',
-                quantity=Decimal('10'),
-                price_per_share=Decimal('100.00'),
-                trading_fees=Decimal('9.99'),
-                currency='USD',
-                transaction_date=datetime.now().date()
-            )
-            db_session.add(transaction)
-            db_session.commit()
-    
+        with app.app_context():
+            session = Session()
+            try:
+                with Lock():
+                    transaction = Transaction(
+                        portfolio_id=portfolio_id,
+                        security_id=security_id,
+                        platform_id=platform_id,
+                        transaction_type='BUY',
+                        quantity=Decimal('10'),
+                        price_per_share=Decimal('100.00'),
+                        trading_fees=Decimal('9.99'),
+                        currency='USD',
+                        transaction_date=datetime.now().date()
+                    )
+                    session.add(transaction)
+                    session.commit()
+            except Exception as e:
+                session.rollback()
+                raise e
+            finally:
+                Session.remove()
+
     start_time = time.time()
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(create_transaction, i) for i in range(100)]
