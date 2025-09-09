@@ -20,9 +20,18 @@ def client(app):
 @pytest.fixture
 def db_session(app):
     with app.app_context():
+        db.drop_all()  # Clean start
         db.create_all()
+        
+        # Initialize required data
         db_session = db.session
+        
+        # Create base currency for transactions
+        db_session.execute("PRAGMA foreign_keys=ON")  # Enable foreign key support for SQLite
+        
         yield db_session
+        
+        # Cleanup
         db_session.remove()
         db.drop_all()
 

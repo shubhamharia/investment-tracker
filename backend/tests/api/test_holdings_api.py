@@ -1,7 +1,7 @@
 import pytest
 from datetime import date
 from decimal import Decimal
-from app.models import Holding, Security, Platform, Portfolio
+from app.models import Holding, Security, Platform, Portfolio, Transaction
 from flask import url_for
 
 def test_list_holdings(client, auth_token, test_portfolio):
@@ -9,31 +9,38 @@ def test_list_holdings(client, auth_token, test_portfolio):
     # Create test data
     security = Security(ticker='AAPL', name='Apple Inc.', currency='USD', yahoo_symbol='AAPL')
     platform = Platform(name='Test Platform', currency='USD')
-    security.save()
-    platform.save()
+    from app.extensions import db
+    db.session.add_all([security, platform])
+    db.session.commit()
     
-    holdings = [
-        Holding(
+    # Create holdings through transactions
+    transactions = [
+        Transaction(
             portfolio_id=test_portfolio.id,
             security_id=security.id,
             platform_id=platform.id,
+            transaction_type='BUY',
             quantity=Decimal('100'),
+            price_per_share=Decimal('100.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
-            average_cost=Decimal('100.00'),
-            total_cost=Decimal('10000.00')
+            transaction_date=date(2025, 1, 1)
         ),
-        Holding(
+        Transaction(
             portfolio_id=test_portfolio.id,
             security_id=security.id,
             platform_id=platform.id,
+            transaction_type='BUY',
             quantity=Decimal('50'),
+            price_per_share=Decimal('100.00'),
+            trading_fees=Decimal('9.99'),
             currency='USD',
-            average_cost=Decimal('100.00'),
-            total_cost=Decimal('5000.00')
+            transaction_date=date(2025, 1, 2)
         )
     ]
-    for holding in holdings:
-        holding.save()
+    for transaction in transactions:
+        db.session.add(transaction)
+        db.session.commit()
     
     response = client.get(
         url_for('api.list_holdings', portfolio_id=test_portfolio.id),

@@ -41,6 +41,7 @@ class Transaction(BaseModel):
         super().__init__(*args, **kwargs)
         self.calculate_amounts()
         self.validate()  # Validate before updating holding
+        self.update_holding()
     
     def calculate_amounts(self):
         """Calculate transaction amounts including fees."""
@@ -107,10 +108,13 @@ class Transaction(BaseModel):
             from . import Holding
             holding = Holding.query.filter_by(
                 portfolio_id=self.portfolio_id,
-                security_id=self.security_id
+                security_id=self.security_id,
+                platform_id=self.platform_id
             ).first()
-            if not holding or holding.quantity < self.quantity:
-                raise ValueError("Insufficient shares for sale")
+            if not holding:
+                raise ValueError("No shares held for this security")
+            if holding.quantity < self.quantity:
+                raise ValueError(f"Insufficient shares for sale: have {holding.quantity}, want to sell {self.quantity}")
     
     def update_holding(self):
         """Create or update holding based on transaction."""

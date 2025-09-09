@@ -139,7 +139,13 @@ class Portfolio(BaseModel):
 
     def update_performance(self):
         """Update portfolio performance metrics."""
-        from . import PortfolioPerformance
+        from . import PortfolioPerformance, Holding
+        
+        # Calculate total invested value from holdings
+        holdings = Holding.query.filter_by(portfolio_id=self.id).all()
+        invested_value = sum(holding.total_cost for holding in holdings if holding.total_cost)
+        
+        # Calculate current total value
         current_value = self.calculate_total_value()
         
         # Create new performance record
@@ -148,8 +154,8 @@ class Portfolio(BaseModel):
             date=datetime.utcnow().date(),
             total_value=current_value,
             cash_value=Decimal('0'),
-            invested_value=current_value,
-            total_gain_loss=Decimal('0'),
+            invested_value=invested_value,
+            total_gain_loss=current_value - invested_value,
             daily_gain_loss=Decimal('0'),
             dividend_income=Decimal('0'),
             currency=self.base_currency

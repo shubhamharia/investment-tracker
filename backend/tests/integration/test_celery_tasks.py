@@ -17,7 +17,7 @@ def test_price_update_task(db_session):
     
     with patch('app.services.price_service.PriceService.fetch_latest_prices') as mock_fetch:
         # Mock the price fetch to return test data
-        mock_fetch.return_value = PriceHistory(
+        mock_data = PriceHistory(
             security_id=1,
             price_date=datetime.now().date(),
             open_price=100.00,
@@ -27,12 +27,15 @@ def test_price_update_task(db_session):
             volume=1000000,
             currency='USD'
         )
+        mock_fetch.return_value = [mock_data]
         
         # Run the task
         result = update_security_prices.apply()
         
+        # Check that prices were updated for both securities
         assert result.successful()
         assert mock_fetch.call_count == len(securities)
+        assert len(PriceHistory.query.all()) == len(securities)
 
 def test_dividend_update_task(db_session):
     """Test the dividend update Celery task"""
@@ -47,20 +50,23 @@ def test_dividend_update_task(db_session):
     
     with patch('app.services.dividend_service.DividendService.fetch_dividend_data') as mock_fetch:
         # Mock the dividend fetch to return test data
-        mock_fetch.return_value = [
-            Dividend(
-                security_id=1,
-                ex_date=datetime.now().date(),
-                dividend_per_share=0.88,
-                currency='USD'
-            )
-        ]
+        mock_data = [Dividend(
+            security_id=1,
+            platform_id=1,  # Add required platform_id
+            ex_date=datetime.now().date(),
+            dividend_per_share=0.88,
+            quantity_held=100,  # Add required quantity
+            currency='USD'
+        )]
+        mock_fetch.return_value = mock_data
         
         # Run the task
         result = update_security_dividends.apply()
         
+        # Verify dividends were updated
         assert result.successful()
         assert mock_fetch.call_count == len(securities)
+        assert len(Dividend.query.all()) == 1
 
 @patch('celery.app.task.Task.apply_async')
 def test_task_scheduling(mock_apply_async):

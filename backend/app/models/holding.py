@@ -36,12 +36,14 @@ class Holding(BaseModel):
             raise ValueError("Security is required")
         if not self.quantity or self.quantity <= 0:
             raise ValueError("Quantity must be positive")
-        if not self.average_cost or self.average_cost <= 0:
-            raise ValueError("Average cost must be positive")
-        if not self.total_cost or self.total_cost <= 0:
-            raise ValueError("Total cost must be positive")
         if self.current_price is not None and self.current_price <= 0:
             raise ValueError("Current price must be positive if provided")
+            
+        # Initialize costs if needed
+        if not self.average_cost and hasattr(self, 'price_per_share'):
+            self.average_cost = self.price_per_share
+        if not self.total_cost and self.average_cost and self.quantity:
+            self.total_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
 
     def calculate_values(self):
         """Calculate current value and unrealized gain/loss"""

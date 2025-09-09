@@ -74,11 +74,11 @@ def test_portfolio_holding_transaction_consistency(db_session, test_portfolio):
     
     # Verify cost basis calculation
     expected_cost = sum(
-        (t.quantity * t.price + t.fee) if t.transaction_type == 'BUY'
-        else -(t.quantity * t.price - t.fee)
+        (t.quantity * t.price_per_share + t.trading_fees) if t.transaction_type == 'BUY'
+        else -(t.quantity * t.price_per_share - t.trading_fees)
         for t in transactions
     )
-    assert holding.total_cost == expected_cost
+    assert holding.total_cost == expected_cost.quantize(Decimal(f'0.{"0" * 4}'))
 
 def test_price_dividend_consistency(db_session, test_portfolio):
     """Test consistency between price history and dividend payments"""
@@ -88,15 +88,25 @@ def test_price_dividend_consistency(db_session, test_portfolio):
     db_session.add_all([security, platform])
     db_session.commit()
     
-    # Create holding
-    holding = Holding(
+    # Create holding through transaction
+    transaction = Transaction(
         portfolio_id=test_portfolio.id,
         security_id=security.id,
         platform_id=platform.id,
+        transaction_type='BUY',
         quantity=Decimal('100'),
-        currency='USD'
+        price_per_share=Decimal('100.00'),
+        trading_fees=Decimal('9.99'),
+        currency='USD',
+        transaction_date=date(2025, 1, 1)
     )
-    db_session.add(holding)
+    db_session.add(transaction)
+    db_session.commit()
+    
+    holding = Holding.query.filter_by(
+        portfolio_id=test_portfolio.id,
+        security_id=security.id
+    ).first()
     
     # Add price history
     dates = [date(2025, 1, 1) + timedelta(days=x) for x in range(10)]

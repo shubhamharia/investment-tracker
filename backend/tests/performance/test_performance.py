@@ -170,8 +170,7 @@ def test_concurrent_transaction_processing(db_session, app):
         # Create all tables in the new engine
         from app.extensions import db
         with app.app_context():
-            Base = db.Model
-            Base.metadata.create_all(bind=engine)
+            db.create_all(bind=engine)
             
         session_factory = sessionmaker(bind=engine)
         Session = scoped_session(session_factory)
