@@ -145,10 +145,14 @@ class Portfolio(BaseModel):
         # Create new performance record
         performance = PortfolioPerformance(
             portfolio_id=self.id,
-            value_date=datetime.utcnow().date(),
+            date=datetime.utcnow().date(),
             total_value=current_value,
-            gain_loss=Decimal('0'),
-            gain_loss_pct=Decimal('0')
+            cash_value=Decimal('0'),
+            invested_value=current_value,
+            total_gain_loss=Decimal('0'),
+            daily_gain_loss=Decimal('0'),
+            dividend_income=Decimal('0'),
+            currency=self.base_currency
         )
         
         # Calculate gain/loss if we have an initial value

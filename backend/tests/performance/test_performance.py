@@ -164,35 +164,42 @@ def test_concurrent_transaction_processing(db_session, app):
         security_id = security.id
         platform_id = platform.id
 
-    # Create a new engine and session factory for threads
-    engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-    session_factory = sessionmaker(bind=engine)
-    Session = scoped_session(session_factory)
-
-    def create_transaction(i):
-        """Create a single transaction"""
+        # Create a new engine and session factory for threads
+        engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+        
+        # Create all tables in the new engine
+        from app.extensions import db
         with app.app_context():
-            session = Session()
-            try:
-                with Lock():
-                    transaction = Transaction(
-                        portfolio_id=portfolio_id,
-                        security_id=security_id,
-                        platform_id=platform_id,
-                        transaction_type='BUY',
-                        quantity=Decimal('10'),
-                        price_per_share=Decimal('100.00'),
-                        trading_fees=Decimal('9.99'),
-                        currency='USD',
-                        transaction_date=datetime.now().date()
-                    )
-                    session.add(transaction)
-                    session.commit()
-            except Exception as e:
-                session.rollback()
-                raise e
-            finally:
-                Session.remove()
+            Base = db.Model
+            Base.metadata.create_all(bind=engine)
+            
+        session_factory = sessionmaker(bind=engine)
+        Session = scoped_session(session_factory)
+        
+        def create_transaction(i):
+            """Create a single transaction"""
+            with app.app_context():
+                session = Session()
+                try:
+                    with Lock():
+                        transaction = Transaction(
+                            portfolio_id=portfolio_id,
+                            security_id=security_id,
+                            platform_id=platform_id,
+                            transaction_type='BUY',
+                            quantity=Decimal('10'),
+                            price_per_share=Decimal('100.00'),
+                            trading_fees=Decimal('9.99'),
+                            currency='USD',
+                            transaction_date=datetime.now().date()
+                        )
+                        session.add(transaction)
+                        session.commit()
+                except Exception as e:
+                    session.rollback()
+                    raise e
+                finally:
+                    Session.remove()
 
     start_time = time.time()
     with ThreadPoolExecutor(max_workers=4) as executor:

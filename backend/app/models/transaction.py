@@ -41,11 +41,6 @@ class Transaction(BaseModel):
         super().__init__(*args, **kwargs)
         self.calculate_amounts()
         self.validate()  # Validate before updating holding
-        try:
-            self.update_holding()
-        except Exception as e:
-            db.session.rollback()
-            raise ValueError(f"Failed to update holding: {str(e)}")
     
     def calculate_amounts(self):
         """Calculate transaction amounts including fees."""
@@ -128,23 +123,27 @@ class Transaction(BaseModel):
         if self.transaction_type == 'BUY':
             if not holding:
                 # Create new holding for buy transaction
+                total_cost = (self.quantity * self.price_per_share + 
+                            self.trading_fees + self.stamp_duty + self.fx_fees)
                 holding = Holding(
                     portfolio_id=self.portfolio_id,
                     security_id=self.security_id,
                     platform_id=self.platform_id,
                     quantity=self.quantity,
                     currency=self.currency,
-                    average_cost=self.price_per_share,
-                    total_cost=self.net_amount
+                    average_cost=(total_cost / self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}')),
+                    total_cost=total_cost.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
                 )
                 db.session.add(holding)
             else:
                 # Update existing holding for buy
-                total_value = (holding.quantity * holding.average_cost) + self.net_amount
+                total_cost = (self.quantity * self.price_per_share + 
+                            self.trading_fees + self.stamp_duty + self.fx_fees)
+                new_total_cost = (holding.quantity * holding.average_cost) + total_cost
                 new_quantity = holding.quantity + self.quantity
-                holding.average_cost = (total_value / new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                holding.average_cost = (new_total_cost / new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
                 holding.quantity = new_quantity
-                holding.total_cost = total_value.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                holding.total_cost = new_total_cost.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
 
         elif self.transaction_type == 'SELL':
             if not holding or holding.quantity < self.quantity:
