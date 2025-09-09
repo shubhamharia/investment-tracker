@@ -1,5 +1,5 @@
 import pytest
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date
 from app.models import Dividend, Security, Platform
 from app.constants import DECIMAL_PLACES

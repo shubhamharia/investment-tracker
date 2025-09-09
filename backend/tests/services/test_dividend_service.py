@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from app.models import Security, Platform, Holding, Dividend
+from app.models import Security, Platform, Holding, Dividend, Portfolio
 from app.services.dividend_service import DividendService
 
 @pytest.fixture
@@ -20,13 +20,21 @@ def test_fetch_dividend_data(db_session, mock_yahoo_finance):
     # Create test data
     security = Security(ticker='AAPL', name='Apple Inc.', currency='USD', yahoo_symbol='AAPL')
     platform = Platform(name='Test Platform', currency='USD')
-    db_session.add_all([security, platform])
+    
+    # Create test user and portfolio
+    from app.models.user import User
+    user = User(username='testuser', email='test@example.com')
+    user.set_password('testpass')
+    portfolio = Portfolio(name='Test Portfolio', user=user)
+    
+    db_session.add_all([security, platform, user, portfolio])
     db_session.commit()
     
     # Create a holding
     holding = Holding(
-        security_id=security.id,
-        platform_id=platform.id,
+        portfolio=portfolio,
+        security=security,
+        platform=platform,
         quantity=Decimal('100'),
         average_cost=Decimal('150.00'),
         total_cost=Decimal('15000.00')
@@ -51,12 +59,33 @@ def test_update_all_dividends(db_session, mock_yahoo_finance):
     security1 = Security(ticker='AAPL', name='Apple Inc.', currency='USD', yahoo_symbol='AAPL')
     security2 = Security(ticker='MSFT', name='Microsoft Corp', currency='USD', yahoo_symbol='MSFT')
     platform = Platform(name='Test Platform', currency='USD')
-    db_session.add_all([security1, security2, platform])
+    
+    # Create user and portfolio
+    from app.models.user import User
+    user = User(username='testuser2', email='test2@example.com')
+    user.set_password('testpass')
+    portfolio = Portfolio(name='Test Portfolio', user=user)
+    
+    db_session.add_all([security1, security2, platform, user, portfolio])
     db_session.commit()
     
     # Create holdings
-    holding1 = Holding(security_id=security1.id, platform_id=platform.id, quantity=Decimal('100'))
-    holding2 = Holding(security_id=security2.id, platform_id=platform.id, quantity=Decimal('50'))
+    holding1 = Holding(
+        portfolio=portfolio,
+        security=security1,
+        platform=platform,
+        quantity=Decimal('100'),
+        average_cost=Decimal('150.00'),
+        total_cost=Decimal('15000.00')
+    )
+    holding2 = Holding(
+        portfolio=portfolio,
+        security=security2,
+        platform=platform,
+        quantity=Decimal('50'),
+        average_cost=Decimal('200.00'),
+        total_cost=Decimal('10000.00')
+    )
     db_session.add_all([holding1, holding2])
     db_session.commit()
     
@@ -74,10 +103,24 @@ def test_duplicate_dividend_prevention(db_session, mock_yahoo_finance):
     # Create test data
     security = Security(ticker='AAPL', name='Apple Inc.', currency='USD', yahoo_symbol='AAPL')
     platform = Platform(name='Test Platform', currency='USD')
-    db_session.add_all([security, platform])
+    
+    # Create user and portfolio
+    from app.models.user import User
+    user = User(username='testuser3', email='test3@example.com')
+    user.set_password('testpass')
+    portfolio = Portfolio(name='Test Portfolio', user=user)
+    
+    db_session.add_all([security, platform, user, portfolio])
     db_session.commit()
     
-    holding = Holding(security_id=security.id, platform_id=platform.id, quantity=Decimal('100'))
+    holding = Holding(
+        portfolio=portfolio,
+        security=security,
+        platform=platform,
+        quantity=Decimal('100'),
+        average_cost=Decimal('150.00'),
+        total_cost=Decimal('15000.00')
+    )
     db_session.add(holding)
     db_session.commit()
     
