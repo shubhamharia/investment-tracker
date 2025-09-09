@@ -18,14 +18,18 @@ def test_list_holdings(client, auth_token, test_portfolio):
             security_id=security.id,
             platform_id=platform.id,
             quantity=Decimal('100'),
-            currency='USD'
+            currency='USD',
+            average_cost=Decimal('100.00'),
+            total_cost=Decimal('10000.00')
         ),
         Holding(
             portfolio_id=test_portfolio.id,
             security_id=security.id,
             platform_id=platform.id,
             quantity=Decimal('50'),
-            currency='USD'
+            currency='USD',
+            average_cost=Decimal('100.00'),
+            total_cost=Decimal('5000.00')
         )
     ]
     for holding in holdings:

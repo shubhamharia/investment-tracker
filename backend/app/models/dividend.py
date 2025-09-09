@@ -5,6 +5,11 @@ from ..constants import DECIMAL_PLACES, CURRENCY_CODES
 class Dividend(BaseModel):
     __tablename__ = 'dividends'
     
+    def __init__(self, *args, **kwargs):
+        if 'withholding_tax' not in kwargs:
+            kwargs['withholding_tax'] = Decimal('0')
+        super().__init__(*args, **kwargs)
+    
     id = db.Column(db.Integer, primary_key=True)
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)

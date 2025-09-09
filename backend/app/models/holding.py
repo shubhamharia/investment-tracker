@@ -54,8 +54,6 @@ class Holding(BaseModel):
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def __init__(self, *args, **kwargs):
-        if 'withholding_tax' not in kwargs:
-            kwargs['withholding_tax'] = Decimal('0')
         super().__init__(*args, **kwargs)
         self.calculate_values()
 

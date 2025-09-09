@@ -27,6 +27,12 @@ class Transaction(BaseModel):
     fx_rate = db.Column(db.Numeric(15, 8), default=1)
     notes = db.Column(db.Text)
     
+    def __init__(self, *args, **kwargs):
+        if 'fx_rate' not in kwargs:
+            kwargs['fx_rate'] = 1
+        super().__init__(*args, **kwargs)
+        self.calculate_amounts()
+    
     def calculate_amounts(self):
         """Calculate transaction amounts including fees."""
         try:

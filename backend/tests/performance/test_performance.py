@@ -53,7 +53,9 @@ def create_test_data(db_session, scale=100):
             security_id=security.id,
             platform_id=platform.id,
             quantity=Decimal('100'),
-            currency='USD'
+            currency='USD',
+            average_cost=Decimal('100.00'),
+            total_cost=Decimal('10000.00')
         )
         db_session.add(holding)
         
