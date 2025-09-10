@@ -61,6 +61,13 @@ class Holding(BaseModel):
                 self.unrealized_gain_loss = self.current_value - self.total_cost
                 if self.total_cost > 0:
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    
+    def calculate_value(self):
+        """Calculate and return the current value without storing it"""
+        if self.current_price is not None and self.quantity is not None:
+            return (Decimal(str(self.current_price)) * 
+                   Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+        return Decimal('0')
 
     def __init__(self, *args, **kwargs):
         if 'platform' in kwargs and 'currency' not in kwargs:

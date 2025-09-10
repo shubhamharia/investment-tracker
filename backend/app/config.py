@@ -40,3 +40,6 @@ class TestConfig(Config):
     """Testing configuration."""
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:?foreign_keys=ON'
+    SERVER_NAME = 'localhost:5000'  # Required for url_for() to work in tests
+    APPLICATION_ROOT = '/'
+    PREFERRED_URL_SCHEME = 'http'
