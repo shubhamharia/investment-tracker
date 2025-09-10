@@ -18,7 +18,7 @@ def app():
 def client(app):
     return app.test_client()
 
-from flask_sqlalchemy import text
+# Removed incorrect import of 'text' from 'flask_sqlalchemy'
 
 @pytest.fixture
 def db_session(app):
