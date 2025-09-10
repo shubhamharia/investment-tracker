@@ -6,8 +6,8 @@ from app.services.dividend_service import DividendService
 
 celery = Celery('tasks')
 
-@celery.task
-def update_security_prices():
+@celery.task(bind=True, max_retries=3, default_retry_delay=1)
+def update_security_prices(self):
     """Update security prices from external API"""
     app = create_app()
     with app.app_context():
@@ -15,7 +15,10 @@ def update_security_prices():
         price_service = PriceService()
         securities = Security.query.all()
         for security in securities:
-            price_service.fetch_latest_prices(security)
+            try:
+                price_service.fetch_latest_prices(security)
+            except Exception as exc:
+                self.retry(exc=exc)
 
 @celery.task
 def update_security_dividends():

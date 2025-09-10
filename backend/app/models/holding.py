@@ -73,11 +73,16 @@ class Holding(BaseModel):
             # Recalculate total cost (avg cost * quantity, no fees)
             base_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             
-            # Calculate unrealized gain/loss
-            if base_cost:
-                self.unrealized_gain_loss = self.current_value - base_cost
-                if base_cost > 0:
-                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / base_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # Calculate unrealized gain/loss using total cost (includes fees)
+            if self.total_cost:
+                print(f"DEBUG: Calculating unrealized gain/loss:")
+                print(f"DEBUG: Current Value: {self.current_value}")
+                print(f"DEBUG: Total Cost (with fees): {self.total_cost}")
+                self.unrealized_gain_loss = self.current_value - self.total_cost
+                print(f"DEBUG: Unrealized Gain/Loss: {self.unrealized_gain_loss}")
+                if self.total_cost > 0:
+                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    print(f"DEBUG: Unrealized Gain/Loss %: {self.unrealized_gain_loss_pct}%")
                     
     def calculate_value(self):
         """Calculate and return the current market value without considering fees"""

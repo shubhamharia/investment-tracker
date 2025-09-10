@@ -168,14 +168,12 @@ def test_concurrent_transaction_processing(db_session, app):
         security_id = security.id
         platform_id = platform.id
 
-        # Create a new engine with larger pool size
-        engine = create_engine(
-            app.config['SQLALCHEMY_DATABASE_URI'],
-            pool_size=20,
-            max_overflow=0
-        )
-        
-        # Create tables if they don't exist
+            # Create a new engine for SQLite with appropriate settings
+            engine = create_engine(
+                app.config['SQLALCHEMY_DATABASE_URI'],
+                # SQLite specific settings
+                connect_args={'check_same_thread': False}
+            )        # Create tables if they don't exist
         from app.models import BaseModel
         BaseModel.metadata.create_all(engine)
         
