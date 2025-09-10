@@ -3,6 +3,9 @@ from ..extensions import db
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, Boolean
 from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
+from datetime import datetime, timedelta
+from flask import current_app
 
 class User(BaseModel):
     """
@@ -45,6 +48,47 @@ class User(BaseModel):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def generate_auth_token(self, expires_in=86400):
+        """Generate authentication JWT token
+        
+        Args:
+            expires_in (int): Token expiration time in seconds, defaults to 24 hours
+            
+        Returns:
+            str: JWT token
+        """
+        now = datetime.utcnow()
+        payload = {
+            'id': self.id,
+            'exp': now + timedelta(seconds=expires_in),
+            'iat': now
+        }
+        return jwt.encode(
+            payload,
+            current_app.config.get('SECRET_KEY'),
+            algorithm='HS256'
+        )
+
+    @staticmethod
+    def verify_auth_token(token):
+        """Verify and decode JWT token
+        
+        Args:
+            token (str): JWT token to verify
+            
+        Returns:
+            User: User object if token is valid, None otherwise
+        """
+        try:
+            data = jwt.decode(
+                token,
+                current_app.config.get('SECRET_KEY'),
+                algorithms=['HS256']
+            )
+            return User.query.get(data['id'])
+        except:
+            return None
 
     def to_dict(self):
         try:

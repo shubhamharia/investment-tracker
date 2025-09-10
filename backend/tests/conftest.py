@@ -46,6 +46,11 @@ def test_user(db_session):
     return user
 
 @pytest.fixture
+def auth_token(test_user):
+    """Generate authentication token for test user"""
+    return test_user.generate_auth_token()
+
+@pytest.fixture
 def test_portfolio(db_session, test_user):
     portfolio = Portfolio(
         name='Test Portfolio',
