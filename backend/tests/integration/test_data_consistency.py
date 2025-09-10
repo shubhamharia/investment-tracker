@@ -173,6 +173,7 @@ def test_multi_currency_data_consistency(db_session, test_portfolio):
             currency=security.currency,
             average_cost=Decimal('100.00'),  # Set initial cost
             total_cost=Decimal('10000.00')  # 100 shares * $100.00
+        )
         db_session.add(holding)
         
         # Add transaction

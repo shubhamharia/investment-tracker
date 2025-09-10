@@ -158,6 +158,7 @@ def test_currency_conversion_workflow(db_session, test_portfolio):
             currency=currency,
             average_cost=price,  # Set initial cost
             total_cost=qty * price  # Calculate initial total cost
+        )
         db_session.add(holding)
         
         # Add transaction
@@ -224,6 +225,7 @@ def test_corporate_action_workflow(db_session, test_portfolio):
         currency='USD',
         average_cost=pre_split_price,  # Set initial cost
         total_cost=initial_quantity * pre_split_price  # Calculate initial total cost
+    )
     db_session.add(holding)
     
     # Add pre-split transaction
