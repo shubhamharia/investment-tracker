@@ -153,52 +153,55 @@ def test_concurrent_transaction_processing(db_session, app):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import scoped_session, sessionmaker
 
+    portfolio = None
+    security = None
+    platform = None
+    
     # Create test data within app context
     with app.app_context():
-        portfolio = create_test_data(db_session, scale=10)  # Smaller scale for concurrent test
+        # Create initial test data
+        portfolio = create_test_data(db_session, scale=10)
         security = Security.query.first()
         platform = Platform.query.first()
         
-# Store IDs for use in threads
-portfolio_id = portfolio.id
-security_id = security.id
-platform_id = platform.id
+        # Store IDs for use in threads
+        portfolio_id = portfolio.id
+        security_id = security.id
+        platform_id = platform.id
 
-# Use the existing engine and session factory
-from app.extensions import db
-Session = scoped_session(lambda: db.session())
+        # Use the app's session factory
+        from app.extensions import db
 
-def create_transaction(i):
-    """Create a single transaction"""
-    with app.app_context():
-        session = Session()
-        try:
-            with Lock():
-                transaction = Transaction(
-                    portfolio_id=portfolio_id,
-                    security_id=security_id,
-                    platform_id=platform_id,
-                    transaction_type='BUY',
-                    quantity=Decimal('10'),
-                    price_per_share=Decimal('100.00'),
-                    trading_fees=Decimal('9.99'),
-                    currency='USD',
-                    transaction_date=datetime.now().date()
-                )
-                session.add(transaction)
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            Session.remove()
+        def create_transaction(i):
+            """Create a single transaction"""
+            with app.app_context():
+                try:
+                    with Lock():
+                        transaction = Transaction(
+                            portfolio_id=portfolio_id,
+                            security_id=security_id,
+                            platform_id=platform_id,
+                            transaction_type='BUY',
+                            quantity=Decimal('10'),
+                            price_per_share=Decimal('100.00'),
+                            trading_fees=Decimal('9.99'),
+                            currency='USD',
+                            transaction_date=datetime.now().date()
+                        )
+                        db.session.add(transaction)
+                        db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    raise e
+                finally:
+                    db.session.remove()
 
-    start_time = time.time()
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(create_transaction, i) for i in range(100)]
-        for future in futures:
-            future.result()
-    end_time = time.time()
-    
-    duration = end_time - start_time
-    assert duration < 5.0  # Should complete in less than 5 seconds
+        start_time = time.time()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(create_transaction, i) for i in range(100)]
+            for future in futures:
+                future.result()
+        end_time = time.time()
+        
+        duration = end_time - start_time
+        assert duration < 5.0  # Should complete in less than 5 seconds
