@@ -149,14 +149,15 @@ def test_currency_conversion_workflow(db_session, test_portfolio):
     ]
     
     for security, qty, price, currency in holdings_data:
-        # Create holding
+        # Create holding with initial cost data
         holding = Holding(
             portfolio_id=test_portfolio.id,
             security_id=security.id,
             platform_id=platform.id,
             quantity=qty,
-            currency=currency
-        )
+            currency=currency,
+            average_cost=price,  # Set initial cost
+            total_cost=qty * price  # Calculate initial total cost
         db_session.add(holding)
         
         # Add transaction
@@ -220,8 +221,9 @@ def test_corporate_action_workflow(db_session, test_portfolio):
         security_id=security.id,
         platform_id=platform.id,
         quantity=initial_quantity,
-        currency='USD'
-    )
+        currency='USD',
+        average_cost=pre_split_price,  # Set initial cost
+        total_cost=initial_quantity * pre_split_price  # Calculate initial total cost
     db_session.add(holding)
     
     # Add pre-split transaction

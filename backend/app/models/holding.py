@@ -40,10 +40,17 @@ class Holding(BaseModel):
             raise ValueError("Current price must be positive if provided")
             
         # Initialize costs if needed
-        if not self.average_cost and hasattr(self, 'price_per_share'):
-            self.average_cost = self.price_per_share
-        if not self.total_cost and self.average_cost and self.quantity:
-            self.total_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+        if not hasattr(self, 'average_cost') or self.average_cost is None:
+            if hasattr(self, 'price_per_share'):
+                self.average_cost = self.price_per_share
+            else:
+                self.average_cost = Decimal('0')  # Default to zero for new holdings
+                
+        if not hasattr(self, 'total_cost') or self.total_cost is None:
+            if self.average_cost is not None and self.quantity is not None:
+                self.total_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            else:
+                self.total_cost = Decimal('0')  # Default to zero for new holdings
 
     def calculate_values(self):
         """Calculate current value and unrealized gain/loss"""

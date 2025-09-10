@@ -164,14 +164,15 @@ def test_multi_currency_data_consistency(db_session, test_portfolio):
     
     # Create holdings and transactions in different currencies
     for security in securities:
-        # Create holding
+        # Create holding with initial cost data
         holding = Holding(
             portfolio_id=test_portfolio.id,
             security_id=security.id,
             platform_id=platform.id,
             quantity=Decimal('100'),
-            currency=security.currency
-        )
+            currency=security.currency,
+            average_cost=Decimal('100.00'),  # Set initial cost
+            total_cost=Decimal('10000.00')  # 100 shares * $100.00
         db_session.add(holding)
         
         # Add transaction
