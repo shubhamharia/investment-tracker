@@ -169,12 +169,9 @@ def test_concurrent_transaction_processing(db_session, app):
         session_factory = sessionmaker(bind=engine)
         Session = scoped_session(session_factory)
         
-        # Create all tables in the new engine
-        from app.extensions import db
-        db.drop_all()  # Clean start
-        db.create_all()  # Create all tables
-        
-        def create_transaction(i):
+            # Create all tables in the new engine
+            from app.models.base import Base
+            Base.metadata.create_all(engine)        def create_transaction(i):
             """Create a single transaction"""
             with app.app_context():
                 session = Session()

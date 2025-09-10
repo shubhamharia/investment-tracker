@@ -48,7 +48,18 @@ class Holding(BaseModel):
                 
         if not hasattr(self, 'total_cost') or self.total_cost is None:
             if self.average_cost is not None and self.quantity is not None:
-                self.total_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                # Calculate total cost including any fees from transactions
+                from .transaction import Transaction
+                transactions = Transaction.query.filter_by(
+                    portfolio_id=self.portfolio_id,
+                    security_id=self.security_id
+                ).all()
+                
+                total_fees = sum((t.trading_fees) if t.transaction_type == 'BUY'
+                               else (-t.trading_fees) for t in transactions)
+                                
+                base_cost = (self.average_cost * self.quantity)
+                self.total_cost = (base_cost + total_fees).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             else:
                 self.total_cost = Decimal('0')  # Default to zero for new holdings
 

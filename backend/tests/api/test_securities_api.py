@@ -15,7 +15,7 @@ def test_list_securities(client, auth_token):
         security.save()
     
     response = client.get(
-        url_for('api.list_securities'),
+        url_for('securities.get_securities'),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 200

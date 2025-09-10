@@ -12,9 +12,10 @@ def update_security_prices():
     app = create_app()
     with app.app_context():
         from app.models import Security
+        price_service = PriceService()
         securities = Security.query.all()
         for security in securities:
-            PriceService.fetch_latest_prices(security)
+            price_service.fetch_latest_prices(security)
 
 @celery.task
 def update_security_dividends():
@@ -22,9 +23,10 @@ def update_security_dividends():
     app = create_app()
     with app.app_context():
         from app.models import Security
+        dividend_service = DividendService()
         securities = Security.query.all()
         for security in securities:
-            DividendService.fetch_dividend_data(security)
+            dividend_service.fetch_dividend_data(security)
 
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
