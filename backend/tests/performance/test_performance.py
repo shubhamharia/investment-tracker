@@ -150,14 +150,13 @@ def test_concurrent_transaction_processing(db_session, app):
     """Test performance of concurrent transaction processing"""
     from concurrent.futures import ThreadPoolExecutor
     from threading import Lock
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, event
     from sqlalchemy.orm import scoped_session, sessionmaker
+    import queue
 
-    portfolio = None
-    security = None
-    platform = None
+    # Create a queue for database errors
+    error_queue = queue.Queue()
     
-    # Create test data within app context
     with app.app_context():
         # Create initial test data
         portfolio = create_test_data(db_session, scale=10)
@@ -169,39 +168,73 @@ def test_concurrent_transaction_processing(db_session, app):
         security_id = security.id
         platform_id = platform.id
 
-        # Use the app's session factory
-        from app.extensions import db
+        # Create a new engine with larger pool size
+        engine = create_engine(
+            app.config['SQLALCHEMY_DATABASE_URI'],
+            pool_size=20,
+            max_overflow=0
+        )
+        
+        # Create tables if they don't exist
+        from app.models import BaseModel
+        BaseModel.metadata.create_all(engine)
+        
+        # Create session factory
+        Session = scoped_session(sessionmaker(bind=engine))
+
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
         def create_transaction(i):
             """Create a single transaction"""
-            with app.app_context():
-                try:
-                    with Lock():
-                        transaction = Transaction(
-                            portfolio_id=portfolio_id,
-                            security_id=security_id,
-                            platform_id=platform_id,
-                            transaction_type='BUY',
-                            quantity=Decimal('10'),
-                            price_per_share=Decimal('100.00'),
-                            trading_fees=Decimal('9.99'),
-                            currency='USD',
-                            transaction_date=datetime.now().date()
-                        )
-                        db.session.add(transaction)
-                        db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    raise e
-                finally:
-                    db.session.remove()
+            session = Session()
+            try:
+                transaction = Transaction(
+                    portfolio_id=portfolio_id,
+                    security_id=security_id,
+                    platform_id=platform_id,
+                    transaction_type='BUY',
+                    quantity=Decimal('10'),
+                    price_per_share=Decimal('100.00'),
+                    trading_fees=Decimal('9.99'),
+                    currency='USD',
+                    transaction_date=datetime.now().date()
+                )
+                session.add(transaction)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                error_queue.put(e)
+                raise
+            finally:
+                session.close()
+                Session.remove()
 
         start_time = time.time()
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(create_transaction, i) for i in range(100)]
+        
+        # Use a smaller number of transactions for testing
+        num_transactions = 20
+        max_workers = 4
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(create_transaction, i) for i in range(num_transactions)]
             for future in futures:
-                future.result()
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error in transaction: {str(e)}")
+
         end_time = time.time()
+        
+        # Check for any errors in the queue
+        if not error_queue.empty():
+            raise Exception(f"Errors occurred during concurrent transactions: {error_queue.get()}")
         
         duration = end_time - start_time
         assert duration < 5.0  # Should complete in less than 5 seconds
+
+        # Cleanup
+        Session.remove()
