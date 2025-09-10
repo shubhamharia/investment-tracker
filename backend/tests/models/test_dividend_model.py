@@ -130,23 +130,21 @@ def test_dividend_to_dict(db_session):
     assert Decimal(dividend_dict['net_dividend']) == Decimal('500.00')
     assert dividend_dict['currency'] == 'GBP'
 
-    def test_invalid_dividend_calculation(db_session):
-        """Test handling of invalid dividend calculations."""
-        # Create test security and platform
-        security = Security(ticker='TEST', name='Test Corp', currency='USD')
-        platform = Platform(name='Test Platform', currency='USD')
-        db_session.add_all([security, platform])
-        db_session.commit()
-    
-        # Test that negative dividend per share is rejected
-        with pytest.raises(ValueError, match="Dividend per share must be positive"):
-            dividend = Dividend(
-                security_id=security.id,
-                platform_id=platform.id,
-                ex_date=date(2025, 1, 1),
-                dividend_per_share=Decimal('-1.00'),  # Invalid negative value
-                quantity_held=Decimal('100'),
-                currency='USD'
-            )    # Test calculation should raise ValueError
-    with pytest.raises(ValueError):
-        dividend.calculate_amounts()
+def test_invalid_dividend_calculation(db_session):
+    """Test handling of invalid dividend calculations."""
+    # Create test security and platform
+    security = Security(ticker='TEST', name='Test Corp', currency='USD')
+    platform = Platform(name='Test Platform', currency='USD')
+    db_session.add_all([security, platform])
+    db_session.commit()
+
+    # Test that negative dividend per share is rejected
+    with pytest.raises(ValueError, match="Dividend per share must be positive"):
+        Dividend(
+            security_id=security.id,
+            platform_id=platform.id,
+            ex_date=date(2025, 1, 1),
+            dividend_per_share=Decimal('-1.00'),  # Invalid negative value
+            quantity_held=Decimal('100'),
+            currency='USD'
+        )

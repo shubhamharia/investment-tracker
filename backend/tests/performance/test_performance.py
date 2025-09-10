@@ -170,8 +170,8 @@ def test_concurrent_transaction_processing(db_session, app):
         Session = scoped_session(session_factory)
         
         # Create all tables in the new engine
-        from app.models import Base
-        Base.metadata.create_all(engine)
+        from app.models import BaseModel
+        BaseModel.metadata.create_all(engine)
 
         def create_transaction(i):
             """Create a single transaction"""

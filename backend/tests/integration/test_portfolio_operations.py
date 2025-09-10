@@ -257,11 +257,12 @@ def test_corporate_action_workflow(db_session, test_portfolio):
     db_session.add(price_history)
     db_session.commit()
     
-    # Verify pre-split state
-    pre_split_value = holding.calculate_value()
-    assert pre_split_value == pre_split_price * initial_quantity
-    
-    # Simulate 3:1 stock split
+        # Verify pre-split state
+        # Set current price to match pre-split price for value calculation
+        holding.current_price = pre_split_price
+        pre_split_value = holding.calculate_value()
+        expected_value = pre_split_price * initial_quantity
+        assert pre_split_value == expected_value    # Simulate 3:1 stock split
     split_ratio = 3
     post_split_price = pre_split_price / Decimal(split_ratio)
     
