@@ -80,12 +80,12 @@ class Holding(BaseModel):
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / base_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                     
     def calculate_value(self):
-        """Calculate and return the current market value without storing it"""
+        """Calculate and return the current market value without considering fees"""
         if self.current_price is not None and self.quantity is not None:
-            # Use current price for market value
+            # Use current price for market value, no fees included
             return (Decimal(str(self.current_price)) * 
                    Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-        # Fallback to average cost if no current price
+        # Fallback to average cost if no current price, no fees included
         elif self.average_cost is not None and self.quantity is not None:
             return (Decimal(str(self.average_cost)) * 
                    Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
