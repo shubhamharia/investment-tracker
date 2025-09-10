@@ -67,6 +67,10 @@ class Holding(BaseModel):
         if self.current_price is not None and self.quantity is not None:
             return (Decimal(str(self.current_price)) * 
                    Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+        # If no current price, use average cost
+        elif self.average_cost is not None and self.quantity is not None:
+            return (Decimal(str(self.average_cost)) * 
+                   Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
         return Decimal('0')
 
     def __init__(self, *args, **kwargs):

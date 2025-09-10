@@ -166,13 +166,13 @@ def test_concurrent_transaction_processing(db_session, app):
 
         # Create a new engine and session factory for threads
         engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-        
-        # Create all tables in the new engine
-        from app.models import BaseModel
-        BaseModel.metadata.create_all(engine)
-            
         session_factory = sessionmaker(bind=engine)
         Session = scoped_session(session_factory)
+        
+        # Create all tables in the new engine
+        from app.extensions import db
+        db.drop_all()  # Clean start
+        db.create_all()  # Create all tables
         
         def create_transaction(i):
             """Create a single transaction"""
