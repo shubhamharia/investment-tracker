@@ -1,7 +1,6 @@
 import os
-import sqlalchemy
-from sqlalchemy.exc import OperationalError
 import time
+from app.extensions import db
 
 class Config:
     """Base configuration."""
@@ -25,15 +24,11 @@ class Config:
         retries = 5
         while retries > 0:
             try:
-                engine = sqlalchemy.create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
-                inspector = sqlalchemy.inspect(engine)
-                if not inspector.has_table("users"):
-                    with app.app_context():
-                        db = app.extensions['sqlalchemy'].db
-                        db.create_all()
-                        print("Created database tables")
+                with app.app_context():
+                    db.create_all()
+                    print("Created database tables")
                 return
-            except OperationalError as e:
+            except Exception as e:
                 if retries > 1:
                     retries -= 1
                     print(f"Database connection failed. Retrying... ({retries} attempts left)")
@@ -44,4 +39,4 @@ class Config:
 class TestConfig(Config):
     """Testing configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:?foreign_keys=ON'

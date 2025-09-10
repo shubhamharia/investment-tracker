@@ -4,6 +4,7 @@ from app import create_app
 from app.extensions import db
 from app.models.user import User
 from app.models.portfolio import Portfolio
+from sqlalchemy.sql import text
 from app.models.security import Security
 from app.models.platform import Platform
 from app.models.holding import Holding
@@ -17,6 +18,8 @@ def app():
 def client(app):
     return app.test_client()
 
+from flask_sqlalchemy import text
+
 @pytest.fixture
 def db_session(app):
     with app.app_context():
@@ -25,10 +28,6 @@ def db_session(app):
         
         # Initialize required data
         db_session = db.session
-        
-        # Create base currency for transactions
-        db_session.execute("PRAGMA foreign_keys=ON")  # Enable foreign key support for SQLite
-        
         yield db_session
         
         # Cleanup
