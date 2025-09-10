@@ -66,19 +66,26 @@ class Holding(BaseModel):
     def calculate_values(self):
         """Calculate current value and unrealized gain/loss"""
         if self.current_price is not None and self.quantity is not None:
+            # Calculate current market value (quantity * price, no fees)
             self.current_value = (Decimal(str(self.current_price)) * 
                                 Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-            if self.total_cost:
-                self.unrealized_gain_loss = self.current_value - self.total_cost
-                if self.total_cost > 0:
-                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+            # Recalculate total cost (avg cost * quantity, no fees)
+            base_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            # Calculate unrealized gain/loss
+            if base_cost:
+                self.unrealized_gain_loss = self.current_value - base_cost
+                if base_cost > 0:
+                    self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / base_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                     
     def calculate_value(self):
-        """Calculate and return the current value without storing it"""
+        """Calculate and return the current market value without storing it"""
         if self.current_price is not None and self.quantity is not None:
+            # Use current price for market value
             return (Decimal(str(self.current_price)) * 
                    Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-        # If no current price, use average cost
+        # Fallback to average cost if no current price
         elif self.average_cost is not None and self.quantity is not None:
             return (Decimal(str(self.average_cost)) * 
                    Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
