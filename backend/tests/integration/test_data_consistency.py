@@ -6,7 +6,7 @@ from app.services.portfolio_service import PortfolioService
 from app.services.price_service import PriceService
 from app.services.dividend_service import DividendService
 from sqlalchemy import func
-
+  
 def test_portfolio_holding_transaction_consistency(db_session, test_portfolio):
     """Test data consistency between portfolios, holdings, and transactions"""
     # Setup
@@ -255,8 +255,8 @@ def test_historical_data_consistency(db_session, test_portfolio):
         )
         db_session.add(price_history)
         
-        # Add quarterly dividends
-        if i % 90 == 0:
+        # Add quarterly dividends (exactly 4 per year)
+        if i in [0, 91, 182, 273]:  # Space dividends evenly throughout the year
             dividend = Dividend(
                 security_id=security.id,
                 platform_id=platform.id,

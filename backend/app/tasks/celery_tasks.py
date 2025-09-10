@@ -11,14 +11,20 @@ def update_security_prices():
     """Update security prices from external API"""
     app = create_app()
     with app.app_context():
-        PriceService.update_all_prices()
+        from app.models import Security
+        securities = Security.query.all()
+        for security in securities:
+            PriceService.fetch_latest_prices(security)
 
 @celery.task
 def update_security_dividends():
     """Update security dividends from external API"""
     app = create_app()
     with app.app_context():
-        DividendService.update_all_dividends()
+        from app.models import Security
+        securities = Security.query.all()
+        for security in securities:
+            DividendService.fetch_dividend_data(security)
 
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):

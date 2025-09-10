@@ -54,20 +54,22 @@ def test_portfolio_rebalancing_workflow(db_session, test_portfolio):
         )
         db_session.add(transaction)
         
-        # Add price history
-        price_history = PriceHistory(
-            security_id=security.id,
-            price_date=date(2025, 1, 1),
-            open_price=price,
-            high_price=price * Decimal('1.02'),
-            low_price=price * Decimal('0.98'),
-            close_price=price,
-            volume=1000000,
-            currency='USD'
-        )
-        db_session.add(price_history)
-    
-    db_session.commit()
+            # Add price history
+            price_history = PriceHistory(
+                security_id=security.id,
+                price_date=date(2025, 1, 1),
+                open_price=price,
+                high_price=price * Decimal('1.02'),
+                low_price=price * Decimal('0.98'),
+                close_price=price,
+                volume=1000000,
+                currency='USD'
+            )
+            db_session.add(price_history)
+            
+            # Update the holding's current price
+            holding.current_price = price
+            holding.calculate_values()  # This will update current value based on price    db_session.commit()
     
     # Verify initial portfolio state
     initial_performance = test_portfolio.update_performance()

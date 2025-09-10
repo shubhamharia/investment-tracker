@@ -141,20 +141,16 @@ class Transaction(BaseModel):
                 db.session.add(holding)
             else:
                 # Update existing holding for buy
-                # Calculate total cost of new shares including fees
-                new_shares_cost = self.quantity * self.price_per_share
-                transaction_fees = self.trading_fees + self.stamp_duty + self.fx_fees
-                total_cost = new_shares_cost + transaction_fees
-                
-                # Calculate new totals
-                existing_cost = holding.quantity * holding.average_cost
+                # For buys, add costs including fees to the existing holding
+                transaction_cost = self.quantity * self.price_per_share
+                total_fees = self.trading_fees + self.stamp_duty + self.fx_fees
                 new_quantity = holding.quantity + self.quantity
                 
-                # Update average cost including fees proportionally distributed
-                new_average_cost = (existing_cost + new_shares_cost + transaction_fees) / new_quantity
-                holding.average_cost = new_average_cost.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                # Calculate new weighted average cost and total
+                total_cost = holding.total_cost + transaction_cost + total_fees
+                holding.average_cost = (total_cost / new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
                 holding.quantity = new_quantity
-                holding.total_cost = (holding.average_cost * new_quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                holding.total_cost = total_cost
 
         elif self.transaction_type == 'SELL':
             if not holding or holding.quantity < self.quantity:
