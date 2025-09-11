@@ -2,32 +2,21 @@ from flask import Blueprint
 
 def init_app(app):
     """Initialize the application with all required blueprints."""
+    # Import blueprint factory functions
+    from .securities import create_blueprint as create_securities_bp
     from .platforms import bp as platforms_bp
-    from .securities import bp as securities_bp
     from .transactions import bp as transactions_bp
     from .users import bp as users_bp
     from .portfolios import bp as portfolios_bp
     from .holdings import bp as holdings_bp
 
-    # Define all blueprints that need to be registered
-    blueprints = {
-        'platforms': platforms_bp,
-        'securities': securities_bp,
-        'transactions': transactions_bp,
-        'users': users_bp,
-        'portfolios': portfolios_bp,
-        'holdings': holdings_bp
-    }
+    # Create fresh blueprint instances for each app
+    securities_bp = create_securities_bp()
 
-    # Remove any existing blueprint registrations to avoid conflicts
-    for name in blueprints:
-        if name in app.blueprints:
-            app.blueprints.pop(name)
-            app.view_functions = {
-                key: value for key, value in app.view_functions.items()
-                if not key.startswith(f"{name}.")
-            }
-
-    # Register all blueprints fresh
-    for name, blueprint in blueprints.items():
-        app.register_blueprint(blueprint)
+    # Register blueprints in a specific order to avoid conflicts
+    app.register_blueprint(securities_bp)  # Register securities first as it's causing issues
+    app.register_blueprint(platforms_bp)
+    app.register_blueprint(transactions_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(portfolios_bp)
+    app.register_blueprint(holdings_bp)

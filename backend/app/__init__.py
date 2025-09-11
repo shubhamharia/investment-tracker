@@ -29,13 +29,9 @@ def create_app(config_name='default'):
     with app.app_context():
         db.create_all()  # Create tables for all models
 
-    # Register blueprints
+    # Register blueprints with a fresh instance every time
     from .api import init_app as init_api
-    
-    # Only register blueprints if they haven't been registered yet
-    if not hasattr(app, '_blueprints_registered'):
-        init_api(app)
-        app._blueprints_registered = True
+    init_api(app)
 
     @app.route('/api/health')
     def health_check():

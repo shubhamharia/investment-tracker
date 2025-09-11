@@ -2,11 +2,12 @@ from flask import Blueprint, jsonify, request
 from app.models import Security, PriceHistory
 from app.extensions import db
 
-bp = Blueprint('securities', __name__, url_prefix='/api/securities')
+def create_blueprint():
+    """Create a new blueprint instance."""
+    bp = Blueprint('securities', __name__, url_prefix='/api/securities')
+    return bp
 
-# Ensure routes are only registered once
-if not hasattr(bp, '_routes_registered'):
-    bp._routes_registered = True
+bp = create_blueprint()
 
 @bp.route('/', methods=['GET'])
 def get_securities():
