@@ -7,15 +7,17 @@ import logging
 
 celery = Celery('tasks')
 
-# Configure Celery
+# Load Celery configuration from celeryconfig.py
+celery.config_from_object('celeryconfig')
+
+# Additional task-specific configurations
 celery.conf.update(
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    enable_utc=True,
     task_track_started=True,
     task_reject_on_worker_lost=True,
-    task_acks_late=True
+    task_acks_late=True,
+    broker_pool_limit=None,  # Disable connection pool limit
+    worker_prefetch_multiplier=1,  # Process one task at a time
+    worker_max_tasks_per_child=50  # Restart worker after 50 tasks
 )
 
 # Removed misplaced import after decorator
@@ -97,7 +99,19 @@ def update_security_dividends(self):
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     """Set up periodic tasks"""
-    # Update prices every 5 minutes
+    # Update prices every 5 minutes during market hours
+    sender.add_periodic_task(
+        crontab(minute='*/5', hour='9-16', day_of_week='1-5'),  # Every 5 mins, 9 AM-4 PM, Mon-Fri
+        update_security_prices.s(),
+        name='update_security_prices'
+    )
+    
+    # Update dividends once per day
+    sender.add_periodic_task(
+        crontab(hour=6, minute=0),  # 6 AM every day
+        update_security_dividends.s(),
+        name='update_security_dividends'
+    )
     sender.add_periodic_task(
         300.0,
         update_security_prices.s(),

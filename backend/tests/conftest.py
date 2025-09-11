@@ -13,6 +13,11 @@ from app.models.holding import Holding
 def app():
     """Create and configure a new app instance for each test."""
     _app = create_app('testing')
+    
+    # Configure Celery for testing
+    from app.tasks.celery_tasks import celery
+    celery.config_from_object('tests.celeryconfig_test')
+    
     return _app
 
 @pytest.fixture
@@ -25,6 +30,12 @@ def app_context(app):
     """Provide an application context for the test."""
     with app.app_context() as ctx:
         yield ctx
+
+@pytest.fixture(autouse=True)
+def celery_testing(monkeypatch):
+    """Configure Celery to run tasks eagerly during tests."""
+    from app.tasks.celery_tasks import celery
+    monkeypatch.setattr(celery, 'conf', celery.conf)
 
 @pytest.fixture
 def db_session(app, app_context):
