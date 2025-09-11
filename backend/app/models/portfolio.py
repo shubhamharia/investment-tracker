@@ -169,6 +169,8 @@ class Portfolio(BaseModel):
     user = relationship("User", back_populates="portfolios")
     holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
     performance_history = relationship("PortfolioPerformance", back_populates="portfolio", cascade="all, delete-orphan")
+    dividends = relationship("Dividend", back_populates="portfolio", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="portfolio", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Portfolio {self.name}>'

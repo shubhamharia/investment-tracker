@@ -7,8 +7,10 @@ from ..constants import DECIMAL_PLACES
 class Holding(BaseModel):
     __tablename__ = 'holdings'
     
-    # Define the relationship with Portfolio
+    # Define relationships
     portfolio = relationship("Portfolio", back_populates="holdings")
+    platform = relationship("Platform", back_populates="holdings")
+    security = relationship("Security", back_populates="holdings")
     
     id = db.Column(db.Integer, primary_key=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)

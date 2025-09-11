@@ -32,11 +32,11 @@ class Security(BaseModel):
     yahoo_symbol = db.Column(db.String(20))
     
     # Relationships
-    transactions = db.relationship('Transaction', backref='security', lazy=True)
-    price_history = db.relationship('PriceHistory', backref='security', lazy=True)
-    holdings = db.relationship('Holding', backref='security', lazy=True)
-    dividends = db.relationship('Dividend', backref='security', lazy=True)
-    platform_mappings = db.relationship('SecurityMapping', backref='security', lazy=True)
+    transactions = db.relationship('Transaction', back_populates='security', lazy=True)
+    price_history = db.relationship('PriceHistory', back_populates='security', lazy=True)
+    holdings = db.relationship('Holding', back_populates='security', lazy=True)
+    dividends = db.relationship('Dividend', back_populates='security', lazy=True)
+    platform_mappings = db.relationship('SecurityMapping', back_populates='security', lazy=True)
     
     __table_args__ = (db.UniqueConstraint('ticker', 'exchange'),)
     

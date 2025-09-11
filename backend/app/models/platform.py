@@ -15,8 +15,9 @@ class Platform(BaseModel):
     stamp_duty_applicable = db.Column(db.Boolean, default=False)
     
     # Relationships
-    transactions = db.relationship('Transaction', backref='platform', lazy=True)
-    holdings = db.relationship('Holding', backref='platform', lazy=True)
+    transactions = db.relationship('Transaction', back_populates='platform', lazy=True)
+    holdings = db.relationship('Holding', back_populates='platform', lazy=True)
+    dividends = db.relationship('Dividend', back_populates='platform', lazy=True)
     
     def calculate_trading_fees(self, amount):
         """Calculate trading fees for a given transaction amount."""
