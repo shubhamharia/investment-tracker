@@ -43,7 +43,7 @@ def test_list_holdings(client, auth_token, test_portfolio):
         db.session.commit()
     
     response = client.get(
-        url_for('holdings.get_holdings', portfolio_id=test_portfolio.id),
+        url_for('api.list_holdings', portfolio_id=test_portfolio.id),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 200
@@ -65,7 +65,7 @@ def test_create_holding(client, auth_token, test_portfolio):
     }
     
     response = client.post(
-        url_for('holdings.create_holding', portfolio_id=test_portfolio.id),
+        url_for('api.create_holding', portfolio_id=test_portfolio.id),
         json=holding_data,
         headers={'Authorization': f'Bearer {auth_token}'}
     )
@@ -98,7 +98,7 @@ def test_update_holding(client, auth_token, test_portfolio):
     }
     
     response = client.put(
-        url_for('holdings.update_holding', portfolio_id=test_portfolio.id, holding_id=holding.id),
+        url_for('api.update_holding', portfolio_id=test_portfolio.id, holding_id=holding.id),
         json=update_data,
         headers={'Authorization': f'Bearer {auth_token}'}
     )
@@ -126,7 +126,7 @@ def test_delete_holding(client, auth_token, test_portfolio):
     holding.save()
     
     response = client.delete(
-        url_for('holdings.delete_holding', portfolio_id=test_portfolio.id, holding_id=holding.id),
+        url_for('api.delete_holding', portfolio_id=test_portfolio.id, holding_id=holding.id),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 204
@@ -151,7 +151,7 @@ def test_get_holding_value(client, auth_token, test_portfolio):
     holding.save()
     
     response = client.get(
-        url_for('holdings.get_holding_value', portfolio_id=test_portfolio.id, holding_id=holding.id),
+        url_for('api.get_holding_value', portfolio_id=test_portfolio.id, holding_id=holding.id),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 200

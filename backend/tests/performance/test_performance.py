@@ -186,6 +186,7 @@ def test_concurrent_transaction_processing(db_session, app):
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
+<<<<<<< HEAD
         
         def create_transaction(i):
             """Create a single transaction"""
@@ -216,6 +217,37 @@ def test_concurrent_transaction_processing(db_session, app):
 
             # Track performance
             start_time = time.time()        # Use a smaller number of transactions for testing
+=======
+
+        def create_transaction(i):
+            """Create a single transaction"""
+            session = Session()
+            try:
+                transaction = Transaction(
+                    portfolio_id=portfolio_id,
+                    security_id=security_id,
+                    platform_id=platform_id,
+                    transaction_type='BUY',
+                    quantity=Decimal('10'),
+                    price_per_share=Decimal('100.00'),
+                    trading_fees=Decimal('9.99'),
+                    currency='USD',
+                    transaction_date=datetime.now().date()
+                )
+                session.add(transaction)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                error_queue.put(e)
+                raise
+            finally:
+                session.close()
+                Session.remove()
+
+        start_time = time.time()
+        
+        # Use a smaller number of transactions for testing
+>>>>>>> parent of 27fb851 (Optimize Celery tasks and update test routes)
         num_transactions = 20
         max_workers = 4
         
