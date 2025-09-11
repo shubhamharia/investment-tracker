@@ -33,7 +33,7 @@ def test_create_security(client, auth_token):
     }
     
     response = client.post(
-        url_for('api.create_security'),
+        url_for('securities.create_security'),
         json=security_data,
         headers={'Authorization': f'Bearer {auth_token}'}
     )
@@ -57,7 +57,7 @@ def test_update_security(client, auth_token):
     }
     
     response = client.put(
-        url_for('api.update_security', security_id=security.id),
+        url_for('securities.update_security', security_id=security.id),
         json=update_data,
         headers={'Authorization': f'Bearer {auth_token}'}
     )
@@ -74,7 +74,7 @@ def test_delete_security(client, auth_token):
     security.save()
     
     response = client.delete(
-        url_for('api.delete_security', security_id=security.id),
+        url_for('securities.delete_security', security_id=security.id),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 204
@@ -104,7 +104,7 @@ def test_get_security_price_history(client, auth_token):
         price.save()
     
     response = client.get(
-        url_for('api.get_security_prices', security_id=security.id),
+        url_for('securities.get_security_prices', security_id=security.id),
         headers={'Authorization': f'Bearer {auth_token}'}
     )
     assert response.status_code == 200

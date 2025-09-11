@@ -12,24 +12,29 @@ def update_security_prices(self):
     app = create_app()
     with app.app_context():
         from app.models import Security
-        price_service = PriceService()
+        service = PriceService()
         securities = Security.query.all()
-        for security in securities:
-            try:
-                price_service.fetch_latest_prices(security)
-            except Exception as exc:
-                self.retry(exc=exc)
+        
+        # Call the service once with all securities
+        try:
+            service.fetch_latest_prices(securities)
+        except Exception as exc:
+            self.retry(exc=exc)
 
-@celery.task
-def update_security_dividends():
+@celery.task(bind=True, max_retries=3, default_retry_delay=1)
+def update_security_dividends(self):
     """Update security dividends from external API"""
     app = create_app()
     with app.app_context():
         from app.models import Security
-        dividend_service = DividendService()
+        service = DividendService()
         securities = Security.query.all()
-        for security in securities:
-            dividend_service.fetch_dividend_data(security)
+        
+        # Call the service once with all securities
+        try:
+            service.fetch_dividend_data(securities)
+        except Exception as exc:
+            self.retry(exc=exc)
 
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
