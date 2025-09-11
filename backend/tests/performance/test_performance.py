@@ -181,12 +181,12 @@ def test_concurrent_transaction_processing(db_session, app):
         # Create session factory
         Session = scoped_session(sessionmaker(bind=engine))
 
-        @event.listens_for(engine, "connect")
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
-
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+            
             def create_transaction(i):
                 """Create a single transaction"""
                 # Create new app context for this thread
@@ -215,9 +215,7 @@ def test_concurrent_transaction_processing(db_session, app):
                         Session.remove()
 
             # Track performance
-            start_time = time.time()
-        
-        # Use a smaller number of transactions for testing
+            start_time = time.time()        # Use a smaller number of transactions for testing
         num_transactions = 20
         max_workers = 4
         

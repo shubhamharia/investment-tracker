@@ -7,31 +7,48 @@ import logging
 
 class PriceService:
     @staticmethod
-    def fetch_latest_prices(security):
-        """Fetch latest price data for a security from Yahoo Finance"""
-        try:
-            ticker = yf.Ticker(security.yahoo_symbol)
-            hist = ticker.history(period="2d")
+    def fetch_latest_prices(securities):
+        """Fetch latest price data for securities from Yahoo Finance
+        
+        Args:
+            securities: A single security or list of securities
+        Returns:
+            A list of PriceHistory objects
+        """
+        if not isinstance(securities, list):
+            securities = [securities]
             
-            if hist.empty:
-                logging.warning(f"No price data found for {security.yahoo_symbol}")
-                return None
+        results = []
+        for security in securities:
+            try:
+                ticker = yf.Ticker(security.yahoo_symbol)
+                hist = ticker.history(period="2d")
                 
-            latest_price = hist.iloc[-1]
-            
-            price_history = PriceHistory(
-                security_id=security.id,
-                price_date=hist.index[-1].date(),
-                open_price=latest_price['Open'],
-                high_price=latest_price['High'],
-                low_price=latest_price['Low'],
-                close_price=latest_price['Close'],
-                volume=latest_price['Volume'],
-                currency=security.currency,
-                data_source='yahoo'
-            )
-            
-            return price_history
+                if hist.empty:
+                    logging.warning(f"No price data found for {security.yahoo_symbol}")
+                    continue
+                    
+                latest_price = hist.iloc[-1]
+                
+                price_history = PriceHistory(
+                    security_id=security.id,
+                    price_date=hist.index[-1].date(),
+                    open_price=latest_price['Open'],
+                    high_price=latest_price['High'],
+                    low_price=latest_price['Low'],
+                    close_price=latest_price['Close'],
+                    volume=latest_price['Volume'],
+                    currency=security.currency,
+                    data_source='yahoo'
+                )
+                
+                results.append(price_history)
+                
+            except Exception as e:
+                logging.error(f"Error fetching price for {security.yahoo_symbol}: {str(e)}")
+                continue
+                
+        return results
             
         except Exception as e:
             logging.error(f"Error fetching price for {security.yahoo_symbol}: {str(e)}")
