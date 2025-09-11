@@ -13,9 +13,11 @@ class PriceService:
         Args:
             securities: A single security or list of securities
         Returns:
-            A list of PriceHistory objects
+            A PriceHistory object or None on error if a single security was provided,
+            or a list of PriceHistory objects if a list was provided
         """
-        if not isinstance(securities, list):
+        single_security = not isinstance(securities, list)
+        if single_security:
             securities = [securities]
             
         results = []
@@ -33,20 +35,32 @@ class PriceService:
                 price_history = PriceHistory(
                     security_id=security.id,
                     price_date=hist.index[-1].date(),
-                    open_price=latest_price['Open'],
-                    high_price=latest_price['High'],
-                    low_price=latest_price['Low'],
-                    close_price=latest_price['Close'],
-                    volume=latest_price['Volume'],
+                    open_price=float(latest_price['Open']),
+                    high_price=float(latest_price['High']),
+                    low_price=float(latest_price['Low']),
+                    close_price=float(latest_price['Close']),
+                    volume=int(latest_price['Volume']),
                     currency=security.currency,
                     data_source='yahoo'
                 )
                 
+                # Add to session and flush to get the ID
+                db.session.add(price_history)
+                db.session.flush()
                 results.append(price_history)
                 
             except Exception as e:
                 logging.error(f"Error fetching price for {security.yahoo_symbol}: {str(e)}")
+                db.session.rollback()
+                if single_security:
+                    return None
                 continue
+                
+        # Return single object for single security input
+        if single_security:
+            return results[0] if results else None
+            
+        return results
                 
         return results
 

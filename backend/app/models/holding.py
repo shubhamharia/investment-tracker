@@ -48,18 +48,8 @@ class Holding(BaseModel):
                 
         if not hasattr(self, 'total_cost') or self.total_cost is None:
             if self.average_cost is not None and self.quantity is not None:
-                # Calculate total cost including any fees from transactions
-                from .transaction import Transaction
-                transactions = Transaction.query.filter_by(
-                    portfolio_id=self.portfolio_id,
-                    security_id=self.security_id
-                ).all()
-                
-                total_fees = sum((t.trading_fees) if t.transaction_type == 'BUY'
-                               else (-t.trading_fees) for t in transactions)
-                                
-                base_cost = (self.average_cost * self.quantity)
-                self.total_cost = (base_cost + total_fees).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+                # Calculate total cost (average cost * quantity)
+                self.total_cost = (self.average_cost * self.quantity).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             else:
                 self.total_cost = Decimal('0')  # Default to zero for new holdings
 
@@ -75,14 +65,9 @@ class Holding(BaseModel):
             
             # Calculate unrealized gain/loss using total cost (includes fees)
             if self.total_cost:
-                print(f"DEBUG: Calculating unrealized gain/loss:")
-                print(f"DEBUG: Current Value: {self.current_value}")
-                print(f"DEBUG: Total Cost (with fees): {self.total_cost}")
                 self.unrealized_gain_loss = self.current_value - self.total_cost
-                print(f"DEBUG: Unrealized Gain/Loss: {self.unrealized_gain_loss}")
                 if self.total_cost > 0:
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                    print(f"DEBUG: Unrealized Gain/Loss %: {self.unrealized_gain_loss_pct}%")
                     
     def calculate_value(self, include_fees=False):
         """Calculate and return the current market value

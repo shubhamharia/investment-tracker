@@ -114,16 +114,12 @@ class Portfolio(BaseModel):
         """Update portfolio performance metrics."""
         from . import PortfolioPerformance, Holding, Transaction
         
-        # Calculate total invested value from holdings including fees
+        # Calculate invested value (total cost) from holdings
         holdings = Holding.query.filter_by(portfolio_id=self.id).all()
-        invested_value = sum(holding.calculate_value(include_fees=True) for holding in holdings)
+        invested_value = sum(holding.total_cost for holding in holdings)
         
-        # Get total trading fees
-        transactions = Transaction.query.filter_by(portfolio_id=self.id).all()
-        total_fees = sum(t.trading_fees for t in transactions)
-        
-        # Calculate current total value including fees
-        current_value = self.calculate_total_value(include_fees=True)
+        # Calculate current total value
+        current_value = self.calculate_total_value()
         
         # Calculate dividend income for current day
         today = datetime.utcnow().date()
@@ -199,7 +195,7 @@ class Portfolio(BaseModel):
 
         # Calculate current values
         total_value = sum(h.calculate_value() for h in self.holdings)
-        invested_value = sum(h.calculate_cost_basis() for h in self.holdings)
+        invested_value = sum(h.total_cost for h in self.holdings)
         cash_value = Decimal('0')  # To be implemented with cash management
         dividend_income = sum(d.net_dividend for d in self.get_dividends_for_period(current_date))
 

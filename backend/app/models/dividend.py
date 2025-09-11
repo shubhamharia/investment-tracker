@@ -13,6 +13,7 @@ class Dividend(BaseModel):
         self.calculate_amounts()
     
     id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey('portfolios.id'), nullable=False)
     platform_id = db.Column(db.Integer, db.ForeignKey('platforms.id'), nullable=False)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
     ex_date = db.Column(db.Date, nullable=False)
@@ -25,7 +26,9 @@ class Dividend(BaseModel):
     currency = db.Column(db.String(3), nullable=False)
     
     # Relationships
+    portfolio = db.relationship('Portfolio', backref='dividends', lazy=True)
     platform = db.relationship('Platform', backref='dividends', lazy=True)
+    security = db.relationship('Security', backref='dividends', lazy=True)
     
     def validate(self):
         """Validate dividend data."""
