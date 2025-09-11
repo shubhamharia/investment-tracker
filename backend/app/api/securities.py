@@ -4,6 +4,10 @@ from app.extensions import db
 
 bp = Blueprint('securities', __name__, url_prefix='/api/securities')
 
+# Ensure routes are only registered once
+if not hasattr(bp, '_routes_registered'):
+    bp._routes_registered = True
+
 @bp.route('/', methods=['GET'])
 def get_securities():
     securities = Security.query.all()
