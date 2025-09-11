@@ -9,20 +9,20 @@ from app.models.security import Security
 from app.models.platform import Platform
 from app.models.holding import Holding
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def app():
-    """Create and configure a new app instance for each test session."""
-    app = create_app('testing')
-    return app
+    """Create and configure a new app instance for each test."""
+    _app = create_app('testing')
+    return _app
 
 @pytest.fixture
 def client(app):
     """A test client for the app."""
     return app.test_client()
 
-# Create a new application context for each test
 @pytest.fixture
 def app_context(app):
+    """Provide an application context for the test."""
     with app.app_context() as ctx:
         yield ctx
 

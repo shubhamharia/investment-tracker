@@ -31,7 +31,11 @@ def create_app(config_name='default'):
 
     # Register blueprints
     from .api import init_app as init_api
-    app.before_first_request(lambda: init_api(app) if not hasattr(app, '_blueprints_registered') else None)
+    
+    # Only register blueprints if they haven't been registered yet
+    if not hasattr(app, '_blueprints_registered'):
+        init_api(app)
+        app._blueprints_registered = True
 
     @app.route('/api/health')
     def health_check():
