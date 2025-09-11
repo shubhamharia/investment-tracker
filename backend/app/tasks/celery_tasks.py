@@ -26,7 +26,6 @@ def update_security_prices(self):
     app = create_app()
     with app.app_context():
         from app.models import Security
-<<<<<<< HEAD
         from app.extensions import db
         
         service = PriceService()
@@ -60,23 +59,10 @@ def update_security_prices(self):
 
 @celery.task(bind=True, max_retries=3, default_retry_delay=60)  # 1 minute delay between retries
 def update_security_dividends(self):
-=======
-        price_service = PriceService()
-        securities = Security.query.all()
-        for security in securities:
-            try:
-                price_service.fetch_latest_prices(security)
-            except Exception as exc:
-                self.retry(exc=exc)
-
-@celery.task
-def update_security_dividends():
->>>>>>> parent of 27fb851 (Optimize Celery tasks and update test routes)
     """Update security dividends from external API"""
     app = create_app()
     with app.app_context():
         from app.models import Security
-<<<<<<< HEAD
         from app.extensions import db
         
         service = DividendService()
@@ -107,12 +93,6 @@ def update_security_dividends():
         if not success:
             # Only retry if we had any failures
             raise self.retry(exc=Exception("Some dividend updates failed"))
-=======
-        dividend_service = DividendService()
-        securities = Security.query.all()
-        for security in securities:
-            dividend_service.fetch_dividend_data(security)
->>>>>>> parent of 27fb851 (Optimize Celery tasks and update test routes)
 
 @celery.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
