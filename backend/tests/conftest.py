@@ -9,30 +9,35 @@ from app.models.security import Security
 from app.models.platform import Platform
 from app.models.holding import Holding
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def app():
+    """Create and configure a new app instance for each test session."""
     app = create_app('testing')
     return app
 
 @pytest.fixture
 def client(app):
+    """A test client for the app."""
     return app.test_client()
 
-# Removed incorrect import of 'text' from 'flask_sqlalchemy'
+# Create a new application context for each test
+@pytest.fixture
+def app_context(app):
+    with app.app_context() as ctx:
+        yield ctx
 
 @pytest.fixture
-def db_session(app):
-    with app.app_context():
-        db.drop_all()  # Clean start
-        db.create_all()
-        
-        # Initialize required data
-        db_session = db.session
-        yield db_session
-        
-        # Cleanup
-        db_session.remove()
-        db.drop_all()
+def db_session(app, app_context):
+    db.drop_all()  # Clean start
+    db.create_all()
+    
+    # Initialize required data
+    db_session = db.session
+    yield db_session
+    
+    # Cleanup
+    db_session.remove()
+    db.drop_all()
 
 @pytest.fixture
 def test_user(db_session):

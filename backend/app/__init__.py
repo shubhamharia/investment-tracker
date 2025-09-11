@@ -29,9 +29,11 @@ def create_app(config_name='default'):
     with app.app_context():
         db.create_all()  # Create tables for all models
 
-    # Register blueprints
-    from .api import init_app as init_api
-    init_api(app)
+    # Register blueprints only if they haven't been registered
+    if not hasattr(app, '_blueprints_registered'):
+        from .api import init_app as init_api
+        init_api(app)
+        app._blueprints_registered = True
 
     @app.route('/api/health')
     def health_check():
