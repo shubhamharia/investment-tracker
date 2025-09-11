@@ -34,22 +34,27 @@ def update_security_prices(self):
         securities = Security.query.all()
         
         success = True
+        all_price_data = []
+
+        # Batch fetch prices
         for security in securities:
             try:
                 price_data = service.fetch_latest_prices(security)
                 if price_data:
                     if isinstance(price_data, list):
-                        for price in price_data:
-                            db.session.add(price)
+                        all_price_data.extend(price_data)
                     else:
-                        db.session.add(price_data)
+                        all_price_data.append(price_data)
             except Exception as exc:
                 success = False
                 app.logger.error(f"Error updating prices for {security.ticker}: {str(exc)}")
-                continue
                 
+        # Batch commit all prices
         try:
-            db.session.commit()
+            if all_price_data:
+                for price in all_price_data:
+                    db.session.add(price)
+                db.session.commit()
         except Exception as exc:
             db.session.rollback()
             success = False
@@ -71,22 +76,27 @@ def update_security_dividends(self):
         securities = Security.query.all()
         
         success = True
+        all_dividend_data = []
+
+        # Batch fetch dividends
         for security in securities:
             try:
                 dividend_data = service.fetch_dividend_data(security)
                 if dividend_data:
                     if isinstance(dividend_data, list):
-                        for dividend in dividend_data:
-                            db.session.add(dividend)
+                        all_dividend_data.extend(dividend_data)
                     else:
-                        db.session.add(dividend_data)
+                        all_dividend_data.append(dividend_data)
             except Exception as exc:
                 success = False
                 app.logger.error(f"Error updating dividends for {security.ticker}: {str(exc)}")
-                continue
                 
+        # Batch commit all dividends
         try:
-            db.session.commit()
+            if all_dividend_data:
+                for dividend in all_dividend_data:
+                    db.session.add(dividend)
+                db.session.commit()
         except Exception as exc:
             db.session.rollback()
             success = False
@@ -106,21 +116,9 @@ def setup_periodic_tasks(sender, **kwargs):
         name='update_security_prices'
     )
     
-    # Update dividends once per day
+    # Update dividends once per day at 6 AM
     sender.add_periodic_task(
         crontab(hour=6, minute=0),  # 6 AM every day
         update_security_dividends.s(),
         name='update_security_dividends'
-    )
-    sender.add_periodic_task(
-        300.0,
-        update_security_prices.s(),
-        name='update prices every 5 minutes'
-    )
-    
-    # Update dividends daily at midnight
-    sender.add_periodic_task(
-        crontab(minute=0, hour=0),
-        update_security_dividends.s(),
-        name='update dividends daily'
     )

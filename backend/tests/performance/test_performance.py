@@ -148,6 +148,7 @@ def test_portfolio_performance_calculation_performance(db_session):
 
 def test_concurrent_transaction_processing(db_session, app):
     """Test performance of concurrent transaction processing"""
+    test_start_time = time.time()
     from concurrent.futures import ThreadPoolExecutor
     from threading import Lock
     from sqlalchemy import create_engine, event
@@ -233,7 +234,8 @@ def test_concurrent_transaction_processing(db_session, app):
         if not error_queue.empty():
             raise Exception(f"Errors occurred during concurrent transactions: {error_queue.get()}")
         
-        duration = end_time - start_time
+        # Calculate duration from test_start_time (defined at beginning of test)
+        duration = end_time - test_start_time
         assert duration < 5.0  # Should complete in less than 5 seconds
 
         # Cleanup
