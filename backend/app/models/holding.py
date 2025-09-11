@@ -84,16 +84,41 @@ class Holding(BaseModel):
                     self.unrealized_gain_loss_pct = (self.unrealized_gain_loss / self.total_cost * 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                     print(f"DEBUG: Unrealized Gain/Loss %: {self.unrealized_gain_loss_pct}%")
                     
-    def calculate_value(self):
-        """Calculate and return the current market value without considering fees"""
+    def calculate_value(self, include_fees=False):
+        """Calculate and return the current market value
+        
+        Args:
+            include_fees: If True, includes trading fees in the calculation
+        """
         if self.current_price is not None and self.quantity is not None:
-            # Use current price for market value, no fees included
-            return (Decimal(str(self.current_price)) * 
-                   Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-        # Fallback to average cost if no current price, no fees included
+            base_value = (Decimal(str(self.current_price)) * 
+                        Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            if include_fees:
+                # Include fees from transactions
+                from .transaction import Transaction
+                transactions = Transaction.query.filter_by(
+                    portfolio_id=self.portfolio_id,
+                    security_id=self.security_id
+                ).all()
+                total_fees = sum(t.trading_fees for t in transactions)
+                return base_value + total_fees
+            return base_value
+            
+        # Fallback to average cost if no current price
         elif self.average_cost is not None and self.quantity is not None:
-            return (Decimal(str(self.average_cost)) * 
-                   Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            base_value = (Decimal(str(self.average_cost)) * 
+                        Decimal(str(self.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            if include_fees:
+                from .transaction import Transaction
+                transactions = Transaction.query.filter_by(
+                    portfolio_id=self.portfolio_id,
+                    security_id=self.security_id
+                ).all()
+                total_fees = sum(t.trading_fees for t in transactions)
+                return base_value + total_fees
+            return base_value
+            
         return Decimal('0')
 
     def __init__(self, *args, **kwargs):

@@ -97,76 +97,62 @@ class Portfolio(BaseModel):
     initial_value = db.Column(db.Numeric(15, 4), default=0)
     base_currency = db.Column(db.String(3), default=CURRENCY_CODES[0])  # USD is first in CURRENCY_CODES
 
-    def calculate_total_value(self):
-        """Calculate the total current value of all holdings."""
+    def calculate_total_value(self, include_fees=False):
+        """Calculate the total current value of all holdings.
+        
+        Args:
+            include_fees: If True, includes trading fees in the calculation
+        """
         total = Decimal('0')
         for holding in self.holdings:
-            holding.calculate_values()
-            if holding.current_value:
-                total += holding.current_value
+            value = holding.calculate_value(include_fees=include_fees)
+            if value:
+                total += value
         return total.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
 
     def update_performance(self):
         """Update portfolio performance metrics."""
-        from . import PortfolioPerformance
+        from . import PortfolioPerformance, Holding, Transaction
         
-        current_value = self.calculate_total_value()
-        performance = PortfolioPerformance(
-            portfolio_id=self.id,
-            value_date=datetime.utcnow().date(),
-            total_value=current_value
-        )
-        
-        # Calculate gain/loss
-        if self.initial_value:
-            performance.gain_loss = current_value - self.initial_value
-            if self.initial_value > 0:
-                performance.gain_loss_pct = (performance.gain_loss / self.initial_value * 100).quantize(Decimal('0.01'))
-            else:
-                performance.gain_loss_pct = Decimal('0')
-        
-        db.session.add(performance)
-        return performance
-
-    def calculate_total_value(self):
-        """Calculate the total current value of all holdings."""
-        total = Decimal('0')
-        for holding in self.holdings:
-            holding.calculate_values()
-            if holding.current_value:
-                total += holding.current_value
-        return total.quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
-
-    def update_performance(self):
-        """Update portfolio performance metrics."""
-        from . import PortfolioPerformance, Holding
-        
-        # Calculate total invested value from holdings
+        # Calculate total invested value from holdings including fees
         holdings = Holding.query.filter_by(portfolio_id=self.id).all()
-        invested_value = sum(holding.total_cost for holding in holdings if holding.total_cost)
+        invested_value = sum(holding.calculate_value(include_fees=True) for holding in holdings)
         
-        # Calculate current total value
-        current_value = self.calculate_total_value()
+        # Get total trading fees
+        transactions = Transaction.query.filter_by(portfolio_id=self.id).all()
+        total_fees = sum(t.trading_fees for t in transactions)
+        
+        # Calculate current total value including fees
+        current_value = self.calculate_total_value(include_fees=True)
+        
+        # Calculate dividend income for current day
+        today = datetime.utcnow().date()
+        daily_dividends = Dividend.query.filter_by(portfolio_id=self.id)\
+            .filter(Dividend.payment_date == today).all()
+        dividend_income = sum(d.amount for d in daily_dividends)
         
         # Create new performance record
         performance = PortfolioPerformance(
             portfolio_id=self.id,
-            date=datetime.utcnow().date(),
+            date=today,
             total_value=current_value,
             cash_value=Decimal('0'),
             invested_value=invested_value,
             total_gain_loss=current_value - invested_value,
-            daily_gain_loss=Decimal('0'),
-            dividend_income=Decimal('0'),
+            daily_gain_loss=Decimal('0'),  # Will be updated below if previous exists
+            dividend_income=dividend_income,
             currency=self.base_currency
         )
         
-        # Calculate gain/loss if we have an initial value
-        if self.initial_value:
-            performance.gain_loss = current_value - self.initial_value
-            if self.initial_value > 0:
-                performance.gain_loss_pct = (performance.gain_loss / self.initial_value * 100)\
-                    .quantize(Decimal('0.01'))
+        # Get previous performance for daily gain/loss calculation
+        previous_performance = (PortfolioPerformance.query
+                              .filter_by(portfolio_id=self.id)
+                              .filter(PortfolioPerformance.date < today)
+                              .order_by(desc(PortfolioPerformance.date))
+                              .first())
+        
+        if previous_performance:
+            performance.daily_gain_loss = current_value - previous_performance.total_value
         
         db.session.add(performance)
         db.session.commit()

@@ -49,10 +49,6 @@ class PriceService:
                 continue
                 
         return results
-            
-        except Exception as e:
-            logging.error(f"Error fetching price for {security.yahoo_symbol}: {str(e)}")
-            return None
 
     @staticmethod
     def update_all_prices():

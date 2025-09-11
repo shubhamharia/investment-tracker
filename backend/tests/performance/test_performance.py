@@ -181,38 +181,38 @@ def test_concurrent_transaction_processing(db_session, app):
         # Create session factory
         Session = scoped_session(sessionmaker(bind=engine))
 
-            @event.listens_for(engine, "connect")
-            def set_sqlite_pragma(dbapi_connection, connection_record):
-                cursor = dbapi_connection.cursor()
-                cursor.execute("PRAGMA foreign_keys=ON")
-                cursor.close()
-            
-            def create_transaction(i):
-                """Create a single transaction"""
-                # Create new app context for this thread
-                with app.app_context():
-                    session = Session()
-                    try:
-                        transaction = Transaction(
-                            portfolio_id=portfolio_id,
-                            security_id=security_id,
-                            platform_id=platform_id,
-                            transaction_type='BUY',
-                            quantity=Decimal('10'),
-                            price_per_share=Decimal('100.00'),
-                            trading_fees=Decimal('9.99'),
-                            currency='USD',
-                            transaction_date=datetime.now().date()
-                        )
-                        session.add(transaction)
-                        session.commit()
-                    except Exception as e:
-                        session.rollback()
-                        error_queue.put(e)
-                        raise
-                    finally:
-                        session.close()
-                        Session.remove()
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+        
+        def create_transaction(i):
+            """Create a single transaction"""
+            # Create new app context for this thread
+            with app.app_context():
+                session = Session()
+                try:
+                    transaction = Transaction(
+                        portfolio_id=portfolio_id,
+                        security_id=security_id,
+                        platform_id=platform_id,
+                        transaction_type='BUY',
+                        quantity=Decimal('10'),
+                        price_per_share=Decimal('100.00'),
+                        trading_fees=Decimal('9.99'),
+                        currency='USD',
+                        transaction_date=datetime.now().date()
+                    )
+                    session.add(transaction)
+                    session.commit()
+                except Exception as e:
+                    session.rollback()
+                    error_queue.put(e)
+                    raise
+                finally:
+                    session.close()
+                    Session.remove()
 
             # Track performance
             start_time = time.time()        # Use a smaller number of transactions for testing
