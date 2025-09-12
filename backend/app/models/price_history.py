@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import datetime, timedelta
 from sqlalchemy import desc
+from sqlalchemy.orm import relationship
 from . import db, BaseModel
 from ..constants import DECIMAL_PLACES
 
@@ -17,6 +18,9 @@ class PriceHistory(BaseModel):
     volume = db.Column(db.BigInteger)
     currency = db.Column(db.String(3), nullable=False)
     data_source = db.Column(db.String(50))
+    
+    # Relationships
+    security = relationship('Security', back_populates='price_history')
     
     __table_args__ = (db.UniqueConstraint('security_id', 'price_date'),)
     
