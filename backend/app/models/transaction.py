@@ -24,6 +24,11 @@ class Transaction(BaseModel):
     fx_rate = db.Column(db.Numeric(15, 8), default=1)
     notes = db.Column(db.Text)
     
+    # Define relationships
+    portfolio = db.relationship("Portfolio", back_populates="transactions")
+    platform = db.relationship("Platform", back_populates="transactions")
+    security = db.relationship("Security", back_populates="transactions")
+    
     def __init__(self, *args, **kwargs):
         # Set defaults for numeric fields
         defaults = {
@@ -37,7 +42,7 @@ class Transaction(BaseModel):
         for field, default in defaults.items():
             if field not in kwargs:
                 kwargs[field] = default
-                
+                    
         super().__init__(*args, **kwargs)
         self.calculate_amounts()
         self.validate()  # Validate before updating holding

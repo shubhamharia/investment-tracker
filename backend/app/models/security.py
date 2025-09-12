@@ -19,6 +19,8 @@ class Security(BaseModel):
     instrument_type = db.Column(db.String(20))
     country = db.Column(db.String(2))
     
+    yahoo_symbol = db.Column(db.String(20))
+
     def validate(self):
         """Validate security data."""
         if not self.currency or self.currency not in CURRENCY_CODES:
@@ -29,7 +31,6 @@ class Security(BaseModel):
             raise ValueError("Name is required")
         if self.instrument_type and self.instrument_type not in INSTRUMENT_TYPES.values():
             raise ValueError(f"Instrument type must be one of {list(INSTRUMENT_TYPES.values())}")
-    yahoo_symbol = db.Column(db.String(20))
     
     # Relationships
     transactions = db.relationship('Transaction', back_populates='security', lazy=True)

@@ -191,3 +191,41 @@
    - Run in staging environment
    - Schedule: Before each release
    - Required: Product owner approval
+
+## Test Execution Tools
+
+### 1. Test Runner Script (run_tests.py)
+- Supports selective test execution by categories
+- Test categories:
+  - Unit tests
+  - API tests
+  - Service tests
+  - Integration tests
+  - Performance tests
+- Command-line interface for test selection
+- Supports test filtering and pattern matching
+
+### 2. Docker Test Environment
+- Consistent test environment across platforms
+- Dockerfile and docker-compose configuration
+- Automated database setup for tests
+- Environment variable management
+- Volume mapping for test artifacts
+
+### 3. Platform-Specific Test Scripts
+- Shell script (test.sh) for Linux/macOS
+  - Docker environment management
+  - Build caching for faster execution
+  - Selective test execution support
+  
+- PowerShell script (test.ps1) for Windows
+  - Matches shell script functionality
+  - Windows-specific path handling
+  - Docker Desktop integration
+
+### 4. Test Optimization Features
+- Skip rebuild option for faster iterations
+- Test group selection for targeted testing
+- Environment preparation optimization
+- Clear test failure reporting
+- Support for development on resource-constrained environments (e.g., Raspberry Pi)
