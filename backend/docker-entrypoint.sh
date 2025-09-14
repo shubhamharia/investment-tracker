@@ -22,6 +22,15 @@ with app.app_context():
     print("Created tables:", tables)
 END
 
+# Check if CSV data should be imported automatically
+if [ "$AUTO_IMPORT_CSV" = "true" ] && [ -f "/app/data/combined_transactions_updated.csv" ]; then
+    echo "Auto-importing CSV data..."
+    python import_data.py import
+else
+    echo "Skipping CSV import (AUTO_IMPORT_CSV not set or CSV file not found)"
+    echo "To import data manually, run: docker-compose exec backend python import_data.py import"
+fi
+
 # Start Gunicorn
 echo "Starting Gunicorn..."
 exec gunicorn --bind 0.0.0.0:5000 wsgi:app

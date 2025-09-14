@@ -12,6 +12,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
     ports:
       - "5000:5000"
+    volumes:
+      - ./data:/app/data  # Mount data directory for CSV import
     depends_on:
       db:
         condition: service_healthy

@@ -1,35 +1,83 @@
+# docker-compose.test.yml - Enhanced testing configuration with CSV import
 version: '3.8'
 
 services:
   db:
-    image: postgres:13-alpine
+    image: postgres:13
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=investment_tracker_test
+      - POSTGRES_DB=portfolio_test
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Different port for testing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d portfolio_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"  # Different port for testing
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.arm
+      dockerfile: Dockerfile
     environment:
-      - FLASK_APP=run.py
+      - FLASK_APP=app
       - FLASK_ENV=testing
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/investment_tracker_test
-      - SECRET_KEY=test-secret-key
-      - JWT_SECRET_KEY=test-jwt-secret
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/portfolio_test
+      - REDIS_URL=redis://redis:6379/1
+      - AUTO_IMPORT_CSV=true  # Enable automatic CSV import
+    ports:
+      - "5001:5000"  # Different port for testing
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./backend:/app
-    command: pytest tests/ -v
+      - ./data:/app/data  # Mount data directory for CSV import
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Test runner service
+  test-runner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=testing
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/portfolio_test
+      - REDIS_URL=redis://redis:6379/1
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - testing
+    command: >
+      sh -c "
+        echo 'Running comprehensive test suite...' &&
+        python -m pytest tests/ -v --tb=short &&
+        echo 'Testing import functionality...' &&
+        python tests/test_import_integration_final.py &&
+        echo 'Testing LSE compatibility...' &&
+        python tests/test_lse_compatibility.py &&
+        echo 'All tests completed!'
+      "
