@@ -365,15 +365,156 @@ with app.app_context():
 "
 ```
 
-## 💡 Tips and Best Practices
+## � Troubleshooting Common Issues
+
+### Issue: Backend Container Exits with Code 3
+
+**Symptoms:**
+```bash
+docker-compose ps
+# Shows backend container with "Exit 3" status
+investment-tracker_backend_1    /usr/local/bin/docker-entr...    Exit 3
+investment-tracker_db_1         docker-entrypoint.sh postgres   Up (healthy)
+```
+
+**Diagnostic Steps:**
+
+**Step 1: Check Backend Logs**
+```bash
+cd ~/investment-tracker
+docker-compose logs backend --tail=50
+```
+
+**Step 2: Check Container Status**
+```bash
+docker-compose ps -a
+```
+
+**Step 3: Check System Resources (Raspberry Pi)**
+```bash
+free -h          # Memory usage
+df -h            # Disk space
+docker stats     # Container resource usage
+```
+
+**Common Causes & Solutions:**
+
+**Cause 1: Database Connection Timeout**
+```bash
+# Solution: Add database wait logic
+docker-compose logs db | grep "ready"
+# Restart with proper timing
+docker-compose down
+docker-compose up -d db redis
+sleep 10  # Wait for DB to be ready
+docker-compose up -d backend
+```
+
+**Cause 2: Missing Environment Variables**
+```bash
+# Check .env file exists
+cat .env
+
+# Required variables:
+DATABASE_URL=postgresql://user:password@db:5432/investment_tracker
+REDIS_URL=redis://redis:6379/0
+FLASK_ENV=production
+SECRET_KEY=your-secret-key
+```
+
+**Cause 3: Python Dependencies Issues**
+```bash
+# Force rebuild without cache
+docker-compose down
+docker-compose build --no-cache backend
+docker-compose up -d
+```
+
+**Cause 4: Memory Limitations (Raspberry Pi)**
+```bash
+# Check available memory
+free -m
+# If low memory, restart with resource limits
+docker-compose down
+docker-compose up -d --scale backend=1
+```
+
+**Quick Fix Sequence:**
+```bash
+# Complete restart with proper timing
+docker-compose down -v
+docker-compose up -d db redis
+sleep 15
+docker-compose up -d backend
+docker-compose logs -f backend
+```
+
+### Issue: CSV Import Fails
+
+**Symptoms:**
+- Backend starts but import script fails
+- "File not found" errors
+
+**Solutions:**
+```bash
+# Check file permissions
+ls -la data/combined_transactions_updated.csv
+
+# Check volume mount
+docker-compose exec backend ls -la /app/data/
+
+# Test import manually
+docker-compose exec backend python import_data.py import
+```
+
+### Issue: API Endpoints Not Responding
+
+**Symptoms:**
+- Backend appears healthy but API calls fail
+- Connection refused errors
+
+**Solutions:**
+```bash
+# Check port mapping
+docker-compose ps
+# Should show: 0.0.0.0:5000->5000/tcp
+
+# Test from inside container
+docker-compose exec backend curl http://localhost:5000/api/health
+
+# Check firewall (Raspberry Pi)
+sudo ufw status
+```
+
+### Issue: Database Connection Fails
+
+**Symptoms:**
+- "Connection refused" to PostgreSQL
+- Database not ready errors
+
+**Solutions:**
+```bash
+# Check database health
+docker-compose exec db pg_isready -U postgres
+
+# Reset database
+docker-compose down -v
+docker-compose up -d db
+# Wait for healthy status before starting backend
+```
+
+## �💡 Tips and Best Practices
 
 1. **Always check logs first** when troubleshooting
 2. **Use health checks** to verify service readiness
 3. **Test with fresh volumes** to simulate clean deployments
-4. **Monitor resource usage** during testing
+4. **Monitor resource usage** during testing (especially on Raspberry Pi)
 5. **Use .env files** for environment-specific configurations
 6. **Keep test data separate** from production data
 7. **Regular cleanup** of unused containers and volumes
+8. **Start services in order**: DB → Redis → Backend
+9. **Allow startup time** especially on slower hardware
+10. **Check system resources** before deploying on Raspberry Pi
 
 ## 🔗 Useful Commands Reference
 
