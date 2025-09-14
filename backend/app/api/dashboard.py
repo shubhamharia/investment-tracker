@@ -1,12 +1,13 @@
-from flask import jsonify
+from flask import Blueprint, jsonify
 from sqlalchemy import func
 from decimal import Decimal
-from . import dashboard_bp
 from ..services.portfolio_service import PortfolioService
 from ..models import Holding, Security, Platform
 from ..constants import DECIMAL_PLACES
 
-@dashboard_bp.route('/dashboard', methods=['GET'])
+bp = Blueprint('dashboard', __name__, url_prefix='/api')
+
+@bp.route('/dashboard', methods=['GET'])
 def get_dashboard_data():
     try:
         # Get portfolio summary

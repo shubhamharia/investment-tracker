@@ -13,6 +13,7 @@ def init_app(app):
     from .dividends import bp as dividends_bp
     from .analytics import bp as analytics_bp
     from .performance import bp as performance_bp
+    from .dashboard import bp as dashboard_bp
 
     # Create fresh blueprint instances for each app
     securities_bp = create_securities_bp()
@@ -28,3 +29,4 @@ def init_app(app):
     app.register_blueprint(dividends_bp)
     app.register_blueprint(analytics_bp)
     app.register_blueprint(performance_bp)
+    app.register_blueprint(dashboard_bp)
