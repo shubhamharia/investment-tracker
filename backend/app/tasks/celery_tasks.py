@@ -2,6 +2,8 @@
 from celery import Celery
 from celery.schedules import crontab
 from datetime import datetime
+import time
+import random
 from app import create_app
 from app.services.service_manager import get_price_service, get_dividend_service
 import logging
@@ -50,193 +52,331 @@ def setup_app_context():
     
     return app
 
-@celery.task(bind=True, max_retries=3, default_retry_delay=1)
-def update_security_prices(self):
-    """Update security prices from external API"""
-    print("\n=== Task Function Start ===")
-    print(f"Current FLASK_ENV: {os.environ.get('FLASK_ENV')}")
+@celery.task(bind=True, max_retries=3, default_retry_delay=30)
+def update_single_security_price(self, security_id):
+    """Update price for a single security - distributed task"""
+    print(f"\n=== Single Security Price Update ===")
+    print(f"Security ID: {security_id}")
     app = setup_app_context()
     is_testing = os.environ.get("FLASK_ENV") == "testing"
-    print(f"Testing mode: {is_testing}")
     
     with app.app_context():
         from app.models import Security, PriceHistory
         from app.extensions import db
         
         try:
-            print("\n=== Task Execution Debug ===")
-            print("Task instance:", self)
-            print("Has retry method:", hasattr(self, "retry"))
-            print("Max retries:", getattr(self, "max_retries", None))
+            # Get the specific security
+            security = Security.query.get(security_id)
+            if not security:
+                print(f"Security {security_id} not found")
+                return {"status": "error", "message": f"Security {security_id} not found"}
             
-            # Verify database state
-            print("\n=== Database Check ===")
-            print(f"Database tables: {db.metadata.tables.keys()}")
-            print(f"Database engine: {db.engine.url}")
+            print(f"Processing security: {security.ticker}")
             
-            # List all tables and their row counts
-            for table in db.metadata.sorted_tables:
-                count = db.session.query(table).count()
-                print(f"Table {table.name}: {count} rows")
+            # Add random delay to avoid rate limiting
+            import random
+            delay = random.uniform(1, 5)  # 1-5 second random delay
+            print(f"Applying rate limiting delay: {delay:.2f}s")
+            time.sleep(delay)
             
-            # Ensure tables exist in test environment
+            # Get price service
+            service = get_price_service()
+            price_data = service.get_current_price(security)
+            
+            if price_data is not None:
+                print(f"Received price data: {price_data}")
+                
+                # Create price history record
+                price_history = PriceHistory(
+                    security_id=security.id,
+                    close_price=price_data['Close'],
+                    open_price=price_data['Open'],
+                    high_price=price_data['High'],
+                    low_price=price_data['Low'],
+                    volume=price_data['Volume'],
+                    price_date=datetime.utcnow().date(),
+                    currency=security.currency or "USD",
+                    data_source="yahoo"
+                )
+                
+                # Check for existing record and update or create
+                existing = PriceHistory.query.filter_by(
+                    security_id=security.id,
+                    price_date=price_history.price_date
+                ).first()
+                
+                if existing:
+                    existing.close_price = price_history.close_price
+                    existing.open_price = price_history.open_price
+                    existing.high_price = price_history.high_price
+                    existing.low_price = price_history.low_price
+                    existing.volume = price_history.volume
+                    existing.currency = price_history.currency
+                    existing.data_source = price_history.data_source
+                    print(f"Updated existing price record for {security.ticker}")
+                else:
+                    db.session.add(price_history)
+                    print(f"Created new price record for {security.ticker}")
+                
+                db.session.commit()
+                
+                return {
+                    "status": "success", 
+                    "security_id": security_id,
+                    "ticker": security.ticker,
+                    "price": float(price_data['Close'])
+                }
+            else:
+                print(f"No price data received for {security.ticker}")
+                return {
+                    "status": "no_data", 
+                    "security_id": security_id,
+                    "ticker": security.ticker
+                }
+                
+        except Exception as e:
+            print(f"Error updating price for security {security_id}: {str(e)}")
+            db.session.rollback()
+            
+            # In test mode, always propagate
             if is_testing:
-                print("Ensuring tables exist in test mode")
-                db.create_all()
+                raise e
             
+            # In production, retry with exponential backoff
+            retry_count = getattr(self.request, "retries", 0)
+            if retry_count >= self.max_retries:
+                return {
+                    "status": "error", 
+                    "security_id": security_id,
+                    "message": str(e)
+                }
+            
+            # Exponential backoff: 30s, 60s, 120s
+            retry_delay = self.default_retry_delay * (2 ** retry_count)
+            print(f"Retrying in {retry_delay}s (attempt {retry_count + 1}/{self.max_retries})")
+            raise self.retry(exc=e, countdown=retry_delay)
+
+@celery.task(bind=True, max_retries=2, default_retry_delay=60)
+def update_security_prices_coordinator(self):
+    """Coordinator task that dispatches individual security price update tasks"""
+    print("\n=== Price Update Coordinator Start ===")
+    app = setup_app_context()
+    
+    with app.app_context():
+        from app.models import Security
+        from app.extensions import db
+        
+        try:
             securities = Security.query.all()
             print(f"Found {len(securities)} securities to process")
-            print(f"Securities: {[s.ticker for s in securities]}")
+            
             if not securities:
-                logging.info("No securities found to update")
-                return True
+                print("No securities found to update")
+                return {"status": "no_securities", "processed": 0}
             
-            # Track failures
-            failures = []
-            failed_tickers = []
+            # Dispatch individual tasks with staggered timing
+            task_results = []
+            batch_size = 5  # Process in batches to avoid overwhelming
             
-            # Process securities - in test mode, fail fast
-            try:
-                # Track price histories to be added
-                new_price_histories = []
-                for security in securities:
-                    try:
-                        print(f"\nProcessing security: {security.ticker}")
-                        
-                        # Get price service for each security to ensure we get the mocked version
-                        service = get_price_service()
-                        price = service.get_current_price(security)
-                        
-                        if price is not None:
-                            print(f"Received price: {price}")
-                            price_history = PriceHistory(
-                                security_id=security.id,
-                                close_price=price,
-                                price_date=datetime.utcnow().date(),
-                                currency="USD"  # Default currency
-                            )
-                            new_price_histories.append(price_history)
-                    except Exception as e:
-                        print(f"\n=== Error for {security.ticker} ===")
-                        print(f"Error: {str(e)}")
-                        
-                        db.session.rollback()  # Rollback any pending changes
-                        
-                        # In test mode, always propagate
-                        if is_testing:
-                            print("Test mode: propagating error")
-                            # Ensure all changes are rolled back 
-                            raise e
-                        
-                        # In production, collect failures
-                        failures.append((security.ticker, e))
-                        failed_tickers.append(security.ticker)
-            except Exception as e:
-                print("\n=== Outer Exception ===")
-                print(f"Error: {str(e)}")
-                db.session.rollback()
-                raise
+            for i, security in enumerate(securities):
+                # Calculate delay for this task (stagger dispatching)
+                dispatch_delay = (i % batch_size) * 10  # 10 second intervals within batch
+                batch_delay = (i // batch_size) * 30    # 30 second delay between batches
+                total_delay = dispatch_delay + batch_delay
                 
-            # Only commit if there were no failures
-            if not failures:
-                try:
-                    for ph in new_price_histories:
-                        db.session.add(ph)
-                    db.session.commit()
-                    print("Successfully committed all price updates")
-                except Exception as e:
-                    print("Failed to commit price updates")
-                    db.session.rollback()
-                    raise e
-            else:
-                error_msg = f"Failed to update prices for: {', '.join(failed_tickers)}"
-                logging.error(error_msg)
+                print(f"Scheduling {security.ticker} with {total_delay}s delay")
                 
-                db.session.rollback()  # Ensure no partial commits
-                
-                if is_testing:
-                    # Test mode - raise first failure
-                    raise failures[0][1]
-                elif len(failures) == len(securities):
-                    # Complete failure - raise
-                    raise failures[0][1]
-                else:
-                    # Production mode with partial failure - retry
-                    self.retry(exc=failures[0][1])
+                # Dispatch task with delay
+                task = update_single_security_price.apply_async(
+                    args=[security.id],
+                    countdown=total_delay
+                )
+                task_results.append({
+                    "security_id": security.id,
+                    "ticker": security.ticker,
+                    "task_id": task.id,
+                    "delay": total_delay
+                })
             
-            return True
+            print(f"Dispatched {len(task_results)} individual price update tasks")
+            
+            return {
+                "status": "dispatched",
+                "total_securities": len(securities),
+                "dispatched_tasks": len(task_results),
+                "task_ids": [t["task_id"] for t in task_results]
+            }
             
         except Exception as e:
-            # Log and propagate any errors
-            logging.error(f"Task failed: {str(e)}", exc_info=True)
-            raise  # Always propagate exceptions
+            print(f"Coordinator error: {str(e)}")
+            raise
 
-@celery.task(bind=True, max_retries=3, default_retry_delay=1)
-def update_security_dividends(self):
-    """Update security dividends from external API"""
+@celery.task(bind=True, max_retries=3, default_retry_delay=30)
+def update_single_security_dividend(self, security_id):
+    """Update dividend for a single security - distributed task"""
+    print(f"\n=== Single Security Dividend Update ===")
+    print(f"Security ID: {security_id}")
     app = setup_app_context()
+    is_testing = os.environ.get("FLASK_ENV") == "testing"
     
     with app.app_context():
         from app.models import Security, Dividend
         from app.extensions import db
         
-        # Ensure tables exist in test environment
-        if os.environ.get("FLASK_ENV") == "testing":
-            db.create_all()
+        try:
+            # Get the specific security
+            security = Security.query.get(security_id)
+            if not security:
+                print(f"Security {security_id} not found")
+                return {"status": "error", "message": f"Security {security_id} not found"}
+            
+            print(f"Processing dividend for: {security.ticker}")
+            
+            # Add random delay to avoid rate limiting
+            delay = random.uniform(2, 8)  # 2-8 second random delay
+            print(f"Applying rate limiting delay: {delay:.2f}s")
+            time.sleep(delay)
+            
+            # Get dividend service
+            service = get_dividend_service()
+            dividend_data = service.fetch_dividend_data(security)
+            
+            if dividend_data:
+                if isinstance(dividend_data, list):
+                    added_count = 0
+                    for dividend in dividend_data:
+                        db.session.add(dividend)
+                        added_count += 1
+                    print(f"Added {added_count} dividend records for {security.ticker}")
+                else:
+                    db.session.add(dividend_data)
+                    print(f"Added 1 dividend record for {security.ticker}")
+                
+                db.session.commit()
+                
+                return {
+                    "status": "success",
+                    "security_id": security_id,
+                    "ticker": security.ticker,
+                    "dividends_added": added_count if isinstance(dividend_data, list) else 1
+                }
+            else:
+                print(f"No dividend data found for {security.ticker}")
+                return {
+                    "status": "no_data",
+                    "security_id": security_id,
+                    "ticker": security.ticker
+                }
+                
+        except Exception as e:
+            print(f"Error updating dividend for security {security_id}: {str(e)}")
+            db.session.rollback()
+            
+            # In test mode, always propagate
+            if is_testing:
+                raise e
+            
+            # In production, retry with exponential backoff
+            retry_count = getattr(self.request, "retries", 0)
+            if retry_count >= self.max_retries:
+                return {
+                    "status": "error",
+                    "security_id": security_id,
+                    "message": str(e)
+                }
+            
+            # Exponential backoff: 30s, 60s, 120s
+            retry_delay = self.default_retry_delay * (2 ** retry_count)
+            print(f"Retrying in {retry_delay}s (attempt {retry_count + 1}/{self.max_retries})")
+            raise self.retry(exc=e, countdown=retry_delay)
+
+@celery.task(bind=True, max_retries=2, default_retry_delay=60)
+def update_security_dividends_coordinator(self):
+    """Coordinator task that dispatches individual security dividend update tasks"""
+    print("\n=== Dividend Update Coordinator Start ===")
+    app = setup_app_context()
+    
+    with app.app_context():
+        from app.models import Security
+        from app.extensions import db
         
-        securities = Security.query.all()
-        if not securities:
-            logging.info("No securities found to update dividends")
-            return True
-        
-        # Get service once at task start
-        service = get_dividend_service()
-        
-        # Process each security
-        for security in securities:
-            try:
-                dividend_data = service.fetch_dividend_data(security)
-                if dividend_data:
-                    if isinstance(dividend_data, list):
-                        for dividend in dividend_data:
-                            db.session.add(dividend)
-                    else:
-                        db.session.add(dividend_data)
-                    db.session.commit()
-            except Exception as e:
-                logging.error(f"Error getting dividends for {security.ticker}: {str(e)}")
-                db.session.rollback()
-                retry_count = getattr(self.request, "retries", 0)
-                if retry_count >= self.max_retries:
-                    logging.error(f"Max retries ({self.max_retries}) reached. Final error: {str(e)}")
-                    raise e
-                logging.info(f"Attempting retry {retry_count + 1} of {self.max_retries}")
-                raise self.retry(exc=e, countdown=0)
-        return True
+        try:
+            securities = Security.query.all()
+            print(f"Found {len(securities)} securities to process for dividends")
+            
+            if not securities:
+                print("No securities found to update dividends")
+                return {"status": "no_securities", "processed": 0}
+            
+            # Dispatch individual tasks with staggered timing
+            task_results = []
+            batch_size = 3  # Smaller batches for dividends (less frequent updates)
+            
+            for i, security in enumerate(securities):
+                # Calculate delay for this task (stagger dispatching)
+                dispatch_delay = (i % batch_size) * 15  # 15 second intervals within batch
+                batch_delay = (i // batch_size) * 60    # 60 second delay between batches
+                total_delay = dispatch_delay + batch_delay
+                
+                print(f"Scheduling dividend update for {security.ticker} with {total_delay}s delay")
+                
+                # Dispatch task with delay
+                task = update_single_security_dividend.apply_async(
+                    args=[security.id],
+                    countdown=total_delay
+                )
+                task_results.append({
+                    "security_id": security.id,
+                    "ticker": security.ticker,
+                    "task_id": task.id,
+                    "delay": total_delay
+                })
+            
+            print(f"Dispatched {len(task_results)} individual dividend update tasks")
+            
+            return {
+                "status": "dispatched",
+                "total_securities": len(securities),
+                "dispatched_tasks": len(task_results),
+                "task_ids": [t["task_id"] for t in task_results]
+            }
+            
+        except Exception as e:
+            print(f"Dividend coordinator error: {str(e)}")
+            raise
+
+@celery.task(bind=True, max_retries=3, default_retry_delay=1)
+def update_security_dividends(self):
+    """Legacy bulk dividend update task - kept for backward compatibility"""
+    print("\n=== Legacy Dividend Update (Deprecated) ===")
+    print("This task is deprecated. Use update_security_dividends_coordinator instead.")
+    
+    # Delegate to the new coordinator
+    return update_security_dividends_coordinator.delay()
 
 # Schedule periodic tasks
 
 @celery.task
 def setup_periodic_tasks(sender):
     """Setup periodic Celery tasks"""
-    # Schedule price updates during market hours
+    # Schedule price updates during market hours (using coordinator)
     sender.add_periodic_task(
         crontab(
-            minute="*/5",  # Every 5 minutes
+            minute="0",    # Once per hour
             hour="9-16",   # 9 AM to 4 PM
             day_of_week="1-5"  # Monday to Friday
         ),
-        update_security_prices.s(),
-        name="update_security_prices"
+        update_security_prices_coordinator.s(),
+        name="update_security_prices_coordinator"
     )
     
-    # Schedule dividend updates daily
+    # Schedule dividend updates daily (using coordinator)
     sender.add_periodic_task(
         crontab(
             minute="0",
             hour="17",
             day_of_week="1-5"
         ),
-        update_security_dividends.s(),
-        name="update_security_dividends"
+        update_security_dividends_coordinator.s(),
+        name="update_security_dividends_coordinator"
     )

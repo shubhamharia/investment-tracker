@@ -12,8 +12,11 @@ enable_utc = True
 
 # Task routing configuration
 task_routes = {
-    'app.tasks.celery_tasks.update_security_prices': {'queue': 'prices'},
-    'app.tasks.celery_tasks.update_security_dividends': {'queue': 'dividends'}
+    'app.tasks.celery_tasks.update_single_security_price': {'queue': 'prices'},
+    'app.tasks.celery_tasks.update_security_prices_coordinator': {'queue': 'coordination'},
+    'app.tasks.celery_tasks.update_single_security_dividend': {'queue': 'dividends'},
+    'app.tasks.celery_tasks.update_security_dividends_coordinator': {'queue': 'coordination'},
+    'app.tasks.celery_tasks.update_security_dividends': {'queue': 'dividends'}  # Legacy task
 }
 
 # Worker configuration
@@ -31,12 +34,12 @@ task_time_limit = 900       # 15 minutes
 
 # Beat schedule for periodic tasks
 beat_schedule = {
-    'update-prices-every-5-minutes': {
-        'task': 'app.tasks.celery_tasks.update_security_prices',
-        'schedule': 300.0,  # 5 minutes
+    'update-prices-hourly': {
+        'task': 'app.tasks.celery_tasks.update_security_prices_coordinator',
+        'schedule': 3600.0,  # 1 hour
     },
     'update-dividends-daily': {
-        'task': 'app.tasks.celery_tasks.update_security_dividends',
+        'task': 'app.tasks.celery_tasks.update_security_dividends_coordinator',
         'schedule': 86400.0,  # 24 hours
     },
 }
