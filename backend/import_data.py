@@ -20,6 +20,12 @@ from app.services.portfolio_service import PortfolioService
 # Create app instance
 app = create_app()
 
+def get_default_csv_path():
+    """Get the default CSV file path relative to this script"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, '..', 'data', 'combined_transactions_updated.csv')
+    return os.path.normpath(csv_path)
+
 def parse_date(date_str):
     """Parse date string in DD/MM/YYYY format"""
     if pd.isna(date_str):
@@ -374,8 +380,8 @@ if __name__ == '__main__':
         # Setup initial data
         setup_initial_data()
         
-        # Import CSV data
-        csv_file = os.path.join(os.path.dirname(current_dir), 'data', 'combined_transactions_updated.csv')
+        # Import CSV data - use relative path from script location
+        csv_file = get_default_csv_path()
         
         if os.path.exists(csv_file):
             imported, errors = import_csv_data(csv_file)
@@ -397,7 +403,13 @@ if __name__ == '__main__':
                 print("No data was imported. Please check the CSV file and try again.")
         else:
             print(f"CSV file not found: {csv_file}")
-            print("Please place your CSV file in the ./data/ directory")
+            print("Please place your CSV file in the '../data/' directory relative to this script")
+            print("Expected structure:")
+            print("  investment-tracker/")
+            print("    ├── backend/")
+            print("    │   └── import_data.py  (this script)")
+            print("    └── data/")
+            print("        └── combined_transactions_updated.csv")
 
 # Additional utility functions for data management
 
@@ -520,7 +532,8 @@ def main():
     
     with app.app_context():
         if args.command == 'import':
-            csv_file = args.csv_file or os.path.join(os.path.dirname(current_dir), 'data', 'combined_transactions_updated.csv')
+            # Use relative path from script location
+            csv_file = args.csv_file or get_default_csv_path()
             if os.path.exists(csv_file):
                 imported, errors = import_csv_data(csv_file)
                 if imported > 0:
