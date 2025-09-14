@@ -115,7 +115,7 @@ class Holding(BaseModel):
         elif 'platform_id' in kwargs and 'currency' not in kwargs:
             # Get the platform and set its currency
             from .platform import Platform
-            platform = Platform.query.get(kwargs['platform_id'])
+            platform = db.session.get(Platform, kwargs['platform_id'])
             if platform:
                 kwargs['currency'] = platform.currency
         

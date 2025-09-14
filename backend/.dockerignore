@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+tests/
+pytest.ini
+run_tests.py
+
+# Development
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+TECHNICAL_REPORT.md
+TEST_PLAN.md
+
+# Celery
+celerybeat-schedule*
+celerybeat.pid
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Debug files
+debug_*

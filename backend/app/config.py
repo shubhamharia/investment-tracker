@@ -39,7 +39,10 @@ class Config:
 class TestConfig(Config):
     """Testing configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:?foreign_keys=ON'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = 'test-secret-key'
+    JWT_SECRET_KEY = 'test-jwt-secret'
     SERVER_NAME = 'localhost:5000'  # Required for url_for() to work in tests
     APPLICATION_ROOT = '/'
     PREFERRED_URL_SCHEME = 'http'

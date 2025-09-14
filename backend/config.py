@@ -44,6 +44,11 @@ class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
+    REDIS_URL = 'memory://localhost'  # Use fakeredis for testing
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'memory://'
+    SECRET_KEY = 'test-secret-key'
+    JWT_SECRET_KEY = 'test-jwt-secret'
     
 config = {
     'development': DevelopmentConfig,

@@ -20,6 +20,15 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True)
     first_name = Column(String(64))
     last_name = Column(String(64))
+    is_admin = Column(Boolean, default=False)
+
+    # Relationships
+    portfolios = relationship(
+        "Portfolio",
+        back_populates="user",
+        passive_deletes=True,  # This prevents SQLAlchemy from nullifying foreign keys
+        cascade="all, delete-orphan"  # This ensures portfolios are deleted when user is deleted
+    )
 
     def set_password(self, password):
         """Set the user's password hash"""
@@ -29,46 +38,40 @@ class User(BaseModel):
         """Check if the provided password matches the hash"""
         return check_password_hash(self.password_hash, password)
 
-    def to_dict(self):
-        """Convert user to dictionary representation"""
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'is_active': self.is_active,
-            'first_name': self.first_name,
-            'last_name': self.last_name
-        }
-
-    # Relationships
-    portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-    def generate_auth_token(self, expires_in=86400):
-        """Generate authentication JWT token
+    def generate_auth_token(self, expiration=86400):
+        """Generate a JWT token for authentication
         
         Args:
-            expires_in (int): Token expiration time in seconds, defaults to 24 hours
+            expiration (int): Token expiration time in seconds, defaults to 24 hours
             
         Returns:
             str: JWT token
+            
+        The token contains standard claims:
+        - sub: Subject (user ID)
+        - iat: Issued At
+        - exp: Expiration
         """
-        now = datetime.utcnow()
-        payload = {
-            'id': self.id,
-            'exp': now + timedelta(seconds=expires_in),
-            'iat': now
-        }
-        return jwt.encode(
-            payload,
-            current_app.config.get('SECRET_KEY'),
-            algorithm='HS256'
-        )
+        try:
+            now = datetime.utcnow()
+            payload = {
+                'sub': str(self.id),  # JWT sub claim should be a string
+                'exp': int((now + timedelta(seconds=expiration)).timestamp()),  # Convert to UTC timestamp
+                'iat': int(now.timestamp())
+            }
+            # Always use JWT_SECRET_KEY or fall back to SECRET_KEY
+            secret = current_app.config.get('JWT_SECRET_KEY') or current_app.config['SECRET_KEY']
+            return jwt.encode(
+                payload,
+                secret,
+                algorithm='HS256'
+            )
+        except jwt.InvalidTokenError as e:
+            print(f"Error generating token - invalid token: {e}")
+            return None
+        except Exception as e:
+            print(f"Error generating token: {e}")
+            return None
 
     @staticmethod
     def verify_auth_token(token):
@@ -79,28 +82,41 @@ class User(BaseModel):
             
         Returns:
             User: User object if token is valid, None otherwise
+            
+        Raises:
+            jwt.ExpiredSignatureError: When token has expired
+            jwt.InvalidTokenError: When token is invalid
         """
         try:
+            # Always use JWT_SECRET_KEY or fall back to SECRET_KEY
+            secret = current_app.config.get('JWT_SECRET_KEY') or current_app.config['SECRET_KEY']
             data = jwt.decode(
                 token,
-                current_app.config.get('SECRET_KEY'),
+                secret,
                 algorithms=['HS256']
             )
-            return User.query.get(data['id'])
-        except:
-            return None
+            user = db.session.get(User, int(data['sub']))
+            if not user:
+                raise jwt.InvalidTokenError("User not found")
+            return user
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError) as e:
+            # Let these exceptions propagate up for specific handling
+            raise
+        except Exception as e:
+            print(f"Unexpected error verifying token: {e}")
+            raise jwt.InvalidTokenError(str(e))
 
     def to_dict(self):
-        try:
-            return {
-                'id': self.id,
-                'username': self.username,
-                'email': self.email,
-                'is_active': self.is_active,
-                'first_name': self.first_name,
-                'last_name': self.last_name,
-                'created_at': self.created_at.isoformat() if self.created_at else None
-            }
-        except Exception as e:
-            print(f"Error in to_dict(): {str(e)}")
-            raise
+        """Convert user to dictionary representation"""
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'is_active': self.is_active,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'is_admin': self.is_admin
+        }
+
+    def __repr__(self):
+        return f'<User {self.id}>'

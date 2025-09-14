@@ -11,19 +11,74 @@ class PriceHistory(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     security_id = db.Column(db.Integer, db.ForeignKey('securities.id'), nullable=False)
     price_date = db.Column(db.Date, nullable=False)
-    open_price = db.Column(db.Numeric(15, 8))
-    high_price = db.Column(db.Numeric(15, 8))
-    low_price = db.Column(db.Numeric(15, 8))
-    close_price = db.Column(db.Numeric(15, 8), nullable=False)
+    # Price fields
+    open_price = db.Column('open_price', db.Numeric(15, DECIMAL_PLACES), nullable=True)
+    high_price = db.Column('high_price', db.Numeric(15, DECIMAL_PLACES), nullable=True)
+    low_price = db.Column('low_price', db.Numeric(15, DECIMAL_PLACES), nullable=True)
+    close_price = db.Column('close_price', db.Numeric(15, DECIMAL_PLACES), nullable=False)
+
+    @db.validates('open_price')
+    def validate_open_price(self, key, value):
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    @db.validates('high_price')
+    def validate_high_price(self, key, value):
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    @db.validates('low_price')
+    def validate_low_price(self, key, value):
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    @db.validates('close_price')
+    def validate_close_price(self, key, value):
+        if value is None:
+            raise ValueError("Close price cannot be None")
+        return Decimal(str(value))
     volume = db.Column(db.BigInteger)
     currency = db.Column(db.String(3), nullable=False)
     data_source = db.Column(db.String(50))
+
+    def set_price(self, value, name):
+        if value is None:
+            if name == 'close_price':
+                raise ValueError("Close price cannot be None")
+            return None
+        return Decimal(str(value))
+
+    @db.validates('_open_price')
+    def validate_open_price(self, key, value):
+        return self.set_price(value, 'open_price')
+
+    @db.validates('_high_price')
+    def validate_high_price(self, key, value):
+        return self.set_price(value, 'high_price')
+
+    @db.validates('_low_price')
+    def validate_low_price(self, key, value):
+        return self.set_price(value, 'low_price')
+
+    @db.validates('_close_price')
+    def validate_close_price(self, key, value):
+        return self.set_price(value, 'close_price')
     
     # Relationships
     security = relationship('Security', back_populates='price_history')
     
     __table_args__ = (db.UniqueConstraint('security_id', 'price_date'),)
     
+    def __repr__(self):
+        return f"<PriceHistory(security_id={self.security_id}, date={self.price_date}, close={self.close_price})>"
+
+    @property
+    def formatted_close(self):
+        return str(self.close_price) if self.close_price is not None else None
+
     @classmethod
     def get_latest_price(cls, security_id):
         """Get the latest price for a security."""

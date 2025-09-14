@@ -25,6 +25,7 @@ class BaseModel(db.Model):
 # Import all models after BaseModel definition
 from .user import User 
 from .security import Security
+from .security_mapping import SecurityMapping
 from .platform import Platform
 from .holding import Holding
 from .price_history import PriceHistory
@@ -35,6 +36,7 @@ from .portfolio import Portfolio, PortfolioPerformance
 __all__ = [
     'User',
     'Security',
+    'SecurityMapping',
     'Platform',
     'PriceHistory',
     'Holding',

@@ -32,6 +32,8 @@ class Dividend(BaseModel):
     
     def validate(self):
         """Validate dividend data."""
+        if not self.portfolio_id:
+            raise ValueError("Portfolio is required")
         if not self.platform_id:
             raise ValueError("Platform is required")
         if not self.security_id:

@@ -103,7 +103,8 @@ class Transaction(BaseModel):
             from . import Holding
             holding = Holding.query.filter_by(
                 portfolio_id=self.portfolio_id,
-                security_id=self.security_id
+                security_id=self.security_id,
+                platform_id=self.platform_id
             ).first()
             if not holding or holding.quantity < self.quantity:
                 raise ValueError("Cannot sell more shares than held")
@@ -126,7 +127,8 @@ class Transaction(BaseModel):
         from . import Holding
         holding = Holding.query.filter_by(
             portfolio_id=self.portfolio_id,
-            security_id=self.security_id
+            security_id=self.security_id,
+            platform_id=self.platform_id
         ).first()
 
         if self.transaction_type == 'BUY':
@@ -161,9 +163,18 @@ class Transaction(BaseModel):
             if not holding or holding.quantity < self.quantity:
                 raise ValueError("Cannot sell more shares than held")
                 
-            # Reduce quantity but keep average cost the same
+            # Calculate sell impact including fees
+            old_cost = holding.total_cost
+            sell_amount = self.quantity * self.price_per_share
+            sell_fees = self.trading_fees + self.stamp_duty + self.fx_fees
+            sell_total = sell_amount - sell_fees
+            
+            # Reduce quantity and adjust total cost
             holding.quantity = holding.quantity - self.quantity
-            holding.total_cost = (holding.quantity * holding.average_cost).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            
+            # Calculate the cost basis of the sold shares and subtract from total cost
+            sold_cost_basis = (old_cost * (self.quantity / (self.quantity + holding.quantity))).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
+            holding.total_cost = (old_cost - sold_cost_basis).quantize(Decimal(f'0.{"0" * DECIMAL_PLACES}'))
             
             if holding.quantity == 0:
                 db.session.delete(holding)

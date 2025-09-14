@@ -9,6 +9,10 @@ def init_app(app):
     from .users import bp as users_bp
     from .portfolios import bp as portfolios_bp
     from .holdings import bp as holdings_bp
+    from .auth import bp as auth_bp
+    from .dividends import bp as dividends_bp
+    from .analytics import bp as analytics_bp
+    from .performance import bp as performance_bp
 
     # Create fresh blueprint instances for each app
     securities_bp = create_securities_bp()
@@ -18,5 +22,9 @@ def init_app(app):
     app.register_blueprint(platforms_bp)
     app.register_blueprint(transactions_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(portfolios_bp)
     app.register_blueprint(holdings_bp)
+    app.register_blueprint(dividends_bp)
+    app.register_blueprint(analytics_bp)
+    app.register_blueprint(performance_bp)

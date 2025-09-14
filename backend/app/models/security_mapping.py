@@ -11,10 +11,13 @@ class SecurityMapping(BaseModel):
     platform_name = db.Column(db.String(50), nullable=False)
     
     # Relationships
-    security = relationship('Security', back_populates='platform_mappings')
+    security = relationship('app.models.security.Security',
+                          back_populates='platform_mappings', lazy='select', uselist=False,
+                          foreign_keys=[security_id])
     
     __table_args__ = (
         db.UniqueConstraint('security_id', 'platform_name', name='_security_platform_uc'),
+        {'extend_existing': True}
     )
     
     def __repr__(self):

@@ -7,7 +7,7 @@ bp = Blueprint('platforms', __name__, url_prefix='/api/platforms')
 @bp.route('/', methods=['GET'])
 def get_platforms():
     try:
-        platforms = Platform.query.all()
+        platforms = db.session.query(Platform).all()
         return jsonify([platform.to_dict() for platform in platforms])
     except Exception as e:
         return jsonify({'error': 'Failed to fetch platforms', 'details': str(e)}), 500
@@ -15,10 +15,12 @@ def get_platforms():
 @bp.route('/<int:id>', methods=['GET'])
 def get_platform(id):
     try:
-        platform = Platform.query.get_or_404(id)
+        platform = db.session.get(Platform, id)
+        if not platform:
+            return jsonify({'error': 'Platform not found'}), 404
         return jsonify(platform.to_dict())
     except Exception as e:
-        return jsonify({'error': 'Platform not found', 'details': str(e)}), 404
+        return jsonify({'error': 'Failed to get platform', 'details': str(e)}), 500
 
 @bp.route('/', methods=['POST'])
 def create_platform():
@@ -30,7 +32,7 @@ def create_platform():
             return jsonify({'error': 'Platform name is required'}), 400
             
         # Check for duplicate platform names
-        existing_platform = Platform.query.filter_by(name=data['name']).first()
+        existing_platform = db.session.query(Platform).filter_by(name=data['name']).first()
         if existing_platform:
             return jsonify({'error': 'Platform with this name already exists'}), 409
         
@@ -50,12 +52,14 @@ def create_platform():
 @bp.route('/<int:id>', methods=['PUT'])
 def update_platform(id):
     try:
-        platform = Platform.query.get_or_404(id)
+        platform = db.session.get(Platform, id)
+        if not platform:
+            return jsonify({'error': 'Platform not found'}), 404
         data = request.get_json()
         
         # Check for name conflicts if name is being updated
         if 'name' in data and data['name'] != platform.name:
-            existing_platform = Platform.query.filter_by(name=data['name']).first()
+            existing_platform = db.session.query(Platform).filter_by(name=data['name']).first()
             if existing_platform:
                 return jsonify({'error': 'Platform with this name already exists'}), 409
         
@@ -72,10 +76,13 @@ def update_platform(id):
 @bp.route('/<int:id>', methods=['DELETE'])
 def delete_platform(id):
     try:
-        platform = Platform.query.get_or_404(id)
-        
+        platform = db.session.get(Platform, id)
+        if not platform:
+            return jsonify({'error': 'Platform not found'}), 404
+            
         # Check if platform has any associated holdings
-        if platform.holdings.count() > 0:
+        holdings_count = db.session.query(platform.holdings).count()
+        if holdings_count > 0:
             return jsonify({
                 'error': 'Cannot delete platform with existing holdings',
                 'details': 'Please remove all holdings from this platform first'

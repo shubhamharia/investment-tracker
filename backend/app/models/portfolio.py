@@ -92,10 +92,15 @@ class Portfolio(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), nullable=False)
     description = db.Column(db.String(256))
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     initial_value = db.Column(db.Numeric(15, 4), default=0)
     base_currency = db.Column(db.String(3), default=CURRENCY_CODES[0])  # USD is first in CURRENCY_CODES
+    version_id = db.Column(db.Integer, nullable=False, default=1)
+
+    __mapper_args__ = {
+        'version_id_col': version_id
+    }
 
     def calculate_total_value(self, include_fees=False):
         """Calculate the total current value of all holdings.
@@ -124,8 +129,8 @@ class Portfolio(BaseModel):
         # Calculate dividend income for current day
         today = datetime.utcnow().date()
         daily_dividends = Dividend.query.filter_by(portfolio_id=self.id)\
-            .filter(Dividend.payment_date == today).all()
-        dividend_income = sum(d.amount for d in daily_dividends)
+            .filter(Dividend.pay_date == today).all()
+        dividend_income = sum(d.net_dividend for d in daily_dividends)
         
         # Create new performance record
         performance = PortfolioPerformance(

@@ -37,9 +37,14 @@ class Security(BaseModel):
     price_history = db.relationship('PriceHistory', back_populates='security', lazy=True)
     holdings = db.relationship('Holding', back_populates='security', lazy=True)
     dividends = db.relationship('Dividend', back_populates='security', lazy=True)
-    platform_mappings = db.relationship('SecurityMapping', back_populates='security', lazy=True, cascade='all, delete-orphan')
+    platform_mappings = db.relationship('app.models.security_mapping.SecurityMapping',
+                                   back_populates='security', lazy='select',
+                                   cascade='all, delete-orphan')
     
-    __table_args__ = (db.UniqueConstraint('ticker', 'exchange'),)
+    __table_args__ = (
+        db.UniqueConstraint('ticker', 'exchange'),
+        {'extend_existing': True}
+    )
     
     def get_current_price(self):
         """Get the most recent price for the security."""
