@@ -1,0 +1,547 @@
+# import_data.py - Script to import your CSV data
+import pandas as pd
+import os
+import sys
+from datetime import datetime, date
+from decimal import Decimal
+import re
+
+# Add the current directory to the path so we can import our models
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+from app import create_app
+from app.extensions import db
+from app.models.platform import Platform
+from app.models.security import Security
+from app.models.transaction import Transaction
+from app.services.portfolio_service import PortfolioService
+
+# Create app instance
+app = create_app()
+
+def parse_date(date_str):
+    """Parse date string in DD/MM/YYYY format"""
+    if pd.isna(date_str):
+        return None
+    
+    try:
+        # Handle DD/MM/YYYY format
+        day, month, year = date_str.split('/')
+        return date(int(year), int(month), int(day))
+    except:
+        return None
+
+def clean_ticker(ticker):
+    """Clean ticker symbol"""
+    if pd.isna(ticker):
+        return None
+    return str(ticker).strip()
+
+def determine_exchange(ticker, platform):
+    """Determine exchange from ticker and platform"""
+    if pd.isna(ticker):
+        return None
+    
+    ticker = str(ticker)
+    
+    # London Stock Exchange tickers
+    if ticker.endswith('.L'):
+        return 'LSE'
+    
+    # US tickers (no suffix or common US patterns)
+    if not '.' in ticker or any(ticker.startswith(prefix) for prefix in ['US', 'CA']):
+        return 'NASDAQ'  # Default for US stocks
+    
+    # ETFs and other instruments
+    if ticker.startswith('IE') or ticker.startswith('GB'):
+        return 'LSE'
+    
+    return 'LSE'  # Default
+
+def get_yahoo_symbol(ticker, exchange):
+    """Convert ticker to Yahoo Finance symbol"""
+    if pd.isna(ticker):
+        return None
+    
+    ticker = str(ticker).strip()
+    
+    if exchange == 'LSE' and not ticker.endswith('.L'):
+        return f"{ticker}.L"
+    
+    return ticker
+
+def get_or_create_platform(platform_name):
+    """Get or create platform record"""
+    # Parse platform name and account type
+    if '_' in platform_name:
+        name, account_type = platform_name.split('_', 1)
+    else:
+        name = platform_name
+        account_type = None
+    
+    # Clean the name
+    name = name.replace(' ', '').replace('212', '212')
+    
+    platform = Platform.query.filter_by(name=name, account_type=account_type).first()
+    
+    if not platform:
+        # Set default fee structures based on platform
+        fee_config = {
+            'Trading212': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.15},
+            'Freetrade': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.45},
+            'HL': {'trading_fee_fixed': 11.95, 'fx_fee_percentage': 1.0},
+            'AJBELL': {'trading_fee_fixed': 9.95, 'fx_fee_percentage': 0.5}
+        }
+        
+        config = fee_config.get(name, {'trading_fee_fixed': 0, 'fx_fee_percentage': 0})
+        
+        platform = Platform(
+            name=name,
+            account_type=account_type,
+            trading_fee_fixed=config['trading_fee_fixed'],
+            fx_fee_percentage=config['fx_fee_percentage'],
+            stamp_duty_applicable=True  # UK platforms generally have stamp duty
+        )
+        db.session.add(platform)
+        db.session.flush()
+    
+    return platform
+
+def get_or_create_security(ticker, isin, currency, instrument_currency):
+    """Get or create security record"""
+    if pd.isna(ticker):
+        return None
+    
+    ticker = clean_ticker(ticker)
+    exchange = determine_exchange(ticker, None)
+    
+    # Try to find existing security
+    security = Security.query.filter_by(ticker=ticker, exchange=exchange).first()
+    
+    if not security:
+        # Determine instrument type
+        instrument_type = 'STOCK'  # Default
+        if any(keyword in ticker.upper() for keyword in ['ETF', 'FUND', 'INDEX']):
+            instrument_type = 'ETF'
+        
+        # Determine country from ticker/ISIN
+        country = 'GB'  # Default
+        if exchange == 'NASDAQ':
+            country = 'US'
+        
+        security = Security(
+            ticker=ticker,
+            isin=isin if not pd.isna(isin) else None,
+            exchange=exchange,
+            currency=instrument_currency if not pd.isna(instrument_currency) else currency,
+            instrument_type=instrument_type,
+            country=country,
+            yahoo_symbol=get_yahoo_symbol(ticker, exchange)
+        )
+        db.session.add(security)
+        db.session.flush()
+    
+    return security
+
+def calculate_fees(platform, gross_amount, currency, fx_rate):
+    """Calculate fees based on platform and transaction"""
+    trading_fees = float(platform.trading_fee_fixed) if platform.trading_fee_fixed else 0
+    
+    # FX fees for foreign currency transactions
+    fx_fees = 0
+    if currency != 'GBP' and platform.fx_fee_percentage:
+        fx_fees = float(gross_amount) * float(platform.fx_fee_percentage) / 100
+    
+    # Stamp duty for UK purchases (0.5% on UK stocks)
+    stamp_duty = 0
+    if (platform.stamp_duty_applicable and currency == 'GBP' and 
+        gross_amount > 0):  # Only on purchases
+        stamp_duty = float(gross_amount) * 0.005  # 0.5%
+    
+    return trading_fees, fx_fees, stamp_duty
+
+def import_csv_data(csv_file_path):
+    """Import data from CSV file"""
+    
+    print(f"Reading CSV file: {csv_file_path}")
+    
+    # Read CSV with proper handling of different formats
+    df = pd.read_csv(csv_file_path, parse_dates=False)
+    
+    print(f"Found {len(df)} rows in CSV")
+    print(f"Columns: {list(df.columns)}")
+    
+    # Clean column names
+    df.columns = df.columns.str.strip().str.lower()
+    
+    imported_count = 0
+    error_count = 0
+    
+    for index, row in df.iterrows():
+        try:
+            # Parse date
+            transaction_date = parse_date(row['timestamp'])
+            if not transaction_date:
+                print(f"Row {index}: Invalid date format: {row['timestamp']}")
+                error_count += 1
+                continue
+            
+            # Get or create platform
+            platform = get_or_create_platform(row['platform'])
+            
+            # Get or create security
+            security = get_or_create_security(
+                row['ticker'], 
+                row.get('isin'), 
+                row['currency'],
+                row.get('instrument_currency')
+            )
+            
+            if not security:
+                print(f"Row {index}: Could not create security for ticker: {row['ticker']}")
+                error_count += 1
+                continue
+            
+            # Parse numeric values
+            try:
+                quantity = Decimal(str(row['quantity']))
+                price_per_share = Decimal(str(row['price_per_share']))
+                total_amount = Decimal(str(row['total_amount']))
+                fx_rate = Decimal(str(row.get('fx_rate', 1)))
+            except:
+                print(f"Row {index}: Error parsing numeric values")
+                error_count += 1
+                continue
+            
+            # Determine transaction type
+            transaction_type = str(row['type']).upper()
+            if transaction_type not in ['BUY', 'SELL']:
+                print(f"Row {index}: Invalid transaction type: {transaction_type}")
+                error_count += 1
+                continue
+            
+            # Calculate fees
+            trading_fees, fx_fees, stamp_duty = calculate_fees(
+                platform, total_amount, row['currency'], fx_rate
+            )
+            
+            # Calculate net amount (for sells, total_amount is already net)
+            if transaction_type == 'BUY':
+                gross_amount = total_amount
+                net_amount = gross_amount + Decimal(str(trading_fees + fx_fees + stamp_duty))
+            else:  # SELL
+                net_amount = total_amount
+                gross_amount = net_amount + Decimal(str(trading_fees + fx_fees))
+            
+            # Check if transaction already exists (avoid duplicates)
+            existing = Transaction.query.filter_by(
+                platform_id=platform.id,
+                security_id=security.id,
+                transaction_date=transaction_date,
+                transaction_type=transaction_type,
+                quantity=quantity,
+                price_per_share=price_per_share
+            ).first()
+            
+            if existing:
+                print(f"Row {index}: Transaction already exists, skipping")
+                continue
+            
+            # Create transaction record
+            transaction = Transaction(
+                platform_id=platform.id,
+                security_id=security.id,
+                transaction_type=transaction_type,
+                transaction_date=transaction_date,
+                quantity=quantity,
+                price_per_share=price_per_share,
+                gross_amount=gross_amount,
+                trading_fees=Decimal(str(trading_fees)),
+                fx_fees=Decimal(str(fx_fees)),
+                stamp_duty=Decimal(str(stamp_duty)),
+                net_amount=net_amount,
+                currency=row['currency'],
+                fx_rate=fx_rate
+            )
+            
+            db.session.add(transaction)
+            imported_count += 1
+            
+            if imported_count % 50 == 0:
+                print(f"Imported {imported_count} transactions...")
+                db.session.commit()
+        
+        except Exception as e:
+            print(f"Row {index}: Error importing transaction: {str(e)}")
+            error_count += 1
+            continue
+    
+    # Final commit
+    db.session.commit()
+    
+    print(f"\nImport completed:")
+    print(f"Successfully imported: {imported_count} transactions")
+    print(f"Errors: {error_count} transactions")
+    
+    return imported_count, error_count
+
+def import_historical_prices_for_all_securities():
+    """Import historical price data for all securities"""
+    securities = Security.query.all()
+    
+    print(f"Starting historical price import for {len(securities)} securities...")
+    
+    for security in securities:
+        try:
+            # Find earliest transaction date for this security
+            earliest_transaction = Transaction.query.filter_by(
+                security_id=security.id
+            ).order_by(Transaction.transaction_date.asc()).first()
+            
+            if earliest_transaction:
+                start_date = earliest_transaction.transaction_date
+                print(f"Importing historical data for {security.ticker} from {start_date}")
+                
+                # Queue the historical import task
+                try:
+                    from app.tasks.celery_tasks import import_historical_data
+                    task = import_historical_data.delay(security.id, start_date)
+                    print(f"Queued task {task.id} for {security.ticker}")
+                except ImportError:
+                    print(f"Celery not available, skipping historical import for {security.ticker}")
+                except Exception as e:
+                    print(f"Error queuing task for {security.ticker}: {e}")
+            
+        except Exception as e:
+            print(f"Error queuing historical import for {security.ticker}: {str(e)}")
+
+def setup_initial_data():
+    """Set up initial platform configurations"""
+    
+    # Platform fee configurations
+    platform_configs = [
+        {
+            'name': 'Trading212', 'account_type': 'ISA',
+            'trading_fee_fixed': 0, 'fx_fee_percentage': 0.15,
+            'stamp_duty_applicable': True
+        },
+        {
+            'name': 'Trading212', 'account_type': 'GIA', 
+            'trading_fee_fixed': 0, 'fx_fee_percentage': 0.15,
+            'stamp_duty_applicable': True
+        },
+        {
+            'name': 'Freetrade', 'account_type': 'ISA',
+            'trading_fee_fixed': 0, 'fx_fee_percentage': 0.45,
+            'stamp_duty_applicable': True
+        },
+        {
+            'name': 'Freetrade', 'account_type': 'GIA',
+            'trading_fee_fixed': 0, 'fx_fee_percentage': 0.45,
+            'stamp_duty_applicable': True
+        },
+        {
+            'name': 'HL', 'account_type': 'LISA',
+            'trading_fee_fixed': 11.95, 'fx_fee_percentage': 1.0,
+            'stamp_duty_applicable': True
+        },
+        {
+            'name': 'AJBELL', 'account_type': 'LISA',
+            'trading_fee_fixed': 9.95, 'fx_fee_percentage': 0.5,
+            'stamp_duty_applicable': True
+        }
+    ]
+    
+    for config in platform_configs:
+        existing = Platform.query.filter_by(
+            name=config['name'], 
+            account_type=config['account_type']
+        ).first()
+        
+        if not existing:
+            platform = Platform(**config)
+            db.session.add(platform)
+    
+    db.session.commit()
+    print("Initial platform configurations created")
+
+if __name__ == '__main__':
+    with app.app_context():
+        # Create all database tables
+        db.create_all()
+        
+        # Setup initial data
+        setup_initial_data()
+        
+        # Import CSV data
+        csv_file = os.path.join(os.path.dirname(current_dir), 'data', 'combined_transactions_updated.csv')
+        
+        if os.path.exists(csv_file):
+            imported, errors = import_csv_data(csv_file)
+            
+            if imported > 0:
+                print("\nRecalculating holdings...")
+                PortfolioService.calculate_holdings()
+                print("Holdings calculated successfully")
+                
+                print("\nStarting historical price import...")
+                import_historical_prices_for_all_securities()
+                
+                print("\nData import completed successfully!")
+                print(f"Next steps:")
+                print(f"1. Historical price data will be imported in the background")
+                print(f"2. Current prices will be updated every 5-10 minutes")
+                print(f"3. Access your portfolio at http://localhost:3000")
+            else:
+                print("No data was imported. Please check the CSV file and try again.")
+        else:
+            print(f"CSV file not found: {csv_file}")
+            print("Please place your CSV file in the ./data/ directory")
+
+# Additional utility functions for data management
+
+def update_security_names():
+    """Update security names from Yahoo Finance"""
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed. Run: pip install yfinance")
+        return
+    
+    securities = Security.query.filter(Security.name.is_(None)).all()
+    
+    for security in securities:
+        try:
+            ticker = yf.Ticker(security.yahoo_symbol or security.ticker)
+            info = ticker.info
+            
+            if 'longName' in info:
+                security.name = info['longName']
+            elif 'shortName' in info:
+                security.name = info['shortName']
+            
+            if 'sector' in info:
+                security.sector = info['sector']
+            
+            db.session.add(security)
+            
+        except Exception as e:
+            print(f"Error updating {security.ticker}: {str(e)}")
+    
+    db.session.commit()
+    print(f"Updated names for securities")
+
+def validate_data_integrity():
+    """Validate imported data integrity"""
+    
+    print("Validating data integrity...")
+    
+    # Check for securities without names
+    unnamed_securities = Security.query.filter(Security.name.is_(None)).count()
+    print(f"Securities without names: {unnamed_securities}")
+    
+    # Check for transactions without current prices
+    holdings_without_prices = db.session.query(
+        Security.ticker
+    ).join(Transaction).outerjoin(
+        Security.price_history
+    ).filter(
+        Security.price_history == None
+    ).distinct().count()
+    
+    print(f"Securities without price data: {holdings_without_prices}")
+    
+    # Check for platform fee configurations
+    platforms_without_fees = Platform.query.filter(
+        Platform.trading_fee_fixed.is_(None),
+        Platform.fx_fee_percentage.is_(None)
+    ).count()
+    
+    print(f"Platforms without fee configuration: {platforms_without_fees}")
+    
+    # Check transaction date ranges
+    earliest_transaction = db.session.query(
+        db.func.min(Transaction.transaction_date)
+    ).scalar()
+    latest_transaction = db.session.query(
+        db.func.max(Transaction.transaction_date)
+    ).scalar()
+    
+    print(f"Transaction date range: {earliest_transaction} to {latest_transaction}")
+    
+    # Check currency distribution
+    currency_counts = db.session.query(
+        Transaction.currency,
+        db.func.count(Transaction.id)
+    ).group_by(Transaction.currency).all()
+    
+    print("Currency distribution:")
+    for currency, count in currency_counts:
+        print(f"  {currency}: {count} transactions")
+    
+    print("Data integrity validation completed")
+
+def backup_database():
+    """Create database backup"""
+    import subprocess
+    from datetime import datetime
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_file = f"/backups/portfolio_backup_{timestamp}.sql"
+    
+    try:
+        subprocess.run([
+            'pg_dump',
+            '-h', 'db',
+            '-U', 'portfolio_user',
+            '-d', 'portfolio_db',
+            '-f', backup_file
+        ], check=True, env={'PGPASSWORD': 'portfolio_pass'})
+        
+        print(f"Database backup created: {backup_file}")
+        return backup_file
+    
+    except subprocess.CalledProcessError as e:
+        print(f"Error creating backup: {e}")
+        return None
+
+# CLI interface for the script
+def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Portfolio Data Management')
+    parser.add_argument('command', choices=[
+        'import', 'update-names', 'validate', 'backup', 'setup'
+    ], help='Command to execute')
+    parser.add_argument('--csv-file', help='Path to CSV file for import')
+    
+    args = parser.parse_args()
+    
+    with app.app_context():
+        if args.command == 'import':
+            csv_file = args.csv_file or os.path.join(os.path.dirname(current_dir), 'data', 'combined_transactions_updated.csv')
+            if os.path.exists(csv_file):
+                imported, errors = import_csv_data(csv_file)
+                if imported > 0:
+                    PortfolioService.calculate_holdings()
+                    import_historical_prices_for_all_securities()
+            else:
+                print(f"CSV file not found: {csv_file}")
+        
+        elif args.command == 'update-names':
+            update_security_names()
+        
+        elif args.command == 'validate':
+            validate_data_integrity()
+        
+        elif args.command == 'backup':
+            backup_database()
+        
+        elif args.command == 'setup':
+            db.create_all()
+            setup_initial_data()
+            print("Database setup completed")
+
+if __name__ == '__main__':
+    main()
