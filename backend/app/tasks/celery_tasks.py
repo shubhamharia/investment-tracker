@@ -354,6 +354,15 @@ def update_security_dividends(self):
     # Delegate to the new coordinator
     return update_security_dividends_coordinator.delay()
 
+@celery.task(bind=True, max_retries=3, default_retry_delay=1)
+def update_security_prices(self):
+    """Legacy bulk price update task - kept for backward compatibility"""
+    print("\n=== Legacy Price Update (Deprecated) ===")
+    print("This task is deprecated. Use update_security_prices_coordinator instead.")
+    
+    # Delegate to the new coordinator
+    return update_security_prices_coordinator.delay()
+
 # Schedule periodic tasks
 
 @celery.task
