@@ -83,13 +83,29 @@ def safe_cleanup_platforms():
                         transaction.platform_id = primary_platform.id
                         transaction_updates += 1
                     
-                    # Update holdings (CRITICAL - this was missing!)
+                    # Update holdings (with conflict resolution)
                     holdings = Holding.query.filter_by(platform_id=dup_platform.id).all()
                     print(f"  Moving {len(holdings)} holdings from platform {dup_platform.id} to {primary_platform.id}")
                     
                     for holding in holdings:
-                        holding.platform_id = primary_platform.id
-                        holdings_updates += 1
+                        # Check if a holding already exists for this platform+security combination
+                        existing_holding = Holding.query.filter_by(
+                            platform_id=primary_platform.id, 
+                            security_id=holding.security_id
+                        ).first()
+                        
+                        if existing_holding:
+                            # Merge the holdings by adding quantities and values
+                            print(f"    Merging holding for security {holding.security_id}: {existing_holding.quantity} + {holding.quantity}")
+                            existing_holding.quantity += holding.quantity
+                            existing_holding.current_value += holding.current_value
+                            existing_holding.total_cost += holding.total_cost
+                            # Delete the duplicate holding
+                            db.session.delete(holding)
+                        else:
+                            # No conflict, just update the platform_id
+                            holding.platform_id = primary_platform.id
+                            holdings_updates += 1
                     
                     # Commit updates before deleting
                     db.session.commit()

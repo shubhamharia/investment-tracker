@@ -92,11 +92,27 @@ def safe_fix_securities():
                         for tx in transactions:
                             tx.security_id = primary.id
                         
-                        # Update holdings (CRITICAL - this was missing!)
+                        # Update holdings (with conflict resolution)
                         holdings = Holding.query.filter_by(security_id=sec.id).all()
                         print(f"     Moving {len(holdings)} holdings from {sec.ticker} to {primary.ticker}")
                         for holding in holdings:
-                            holding.security_id = primary.id
+                            # Check if a holding already exists for this platform+security combination
+                            existing_holding = Holding.query.filter_by(
+                                platform_id=holding.platform_id, 
+                                security_id=primary.id
+                            ).first()
+                            
+                            if existing_holding:
+                                # Merge the holdings by adding quantities and values
+                                print(f"      Merging holding for platform {holding.platform_id}: {existing_holding.quantity} + {holding.quantity}")
+                                existing_holding.quantity += holding.quantity
+                                existing_holding.current_value += holding.current_value
+                                existing_holding.total_cost += holding.total_cost
+                                # Delete the duplicate holding
+                                db.session.delete(holding)
+                            else:
+                                # No conflict, just update the security_id
+                                holding.security_id = primary.id
                         
                         # Commit updates before deleting
                         db.session.commit()
