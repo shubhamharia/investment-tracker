@@ -95,11 +95,19 @@ def safe_cleanup_platforms():
                         ).first()
                         
                         if existing_holding:
-                            # Merge the holdings by adding quantities and values
+                            # Merge the holdings by adding quantities and values (handle None values)
                             print(f"    Merging holding for security {holding.security_id}: {existing_holding.quantity} + {holding.quantity}")
                             existing_holding.quantity += holding.quantity
-                            existing_holding.current_value += holding.current_value
-                            existing_holding.total_cost += holding.total_cost
+                            
+                            # Handle None values for current_value and total_cost
+                            existing_current_value = existing_holding.current_value or 0
+                            holding_current_value = holding.current_value or 0
+                            existing_holding.current_value = existing_current_value + holding_current_value
+                            
+                            existing_total_cost = existing_holding.total_cost or 0
+                            holding_total_cost = holding.total_cost or 0
+                            existing_holding.total_cost = existing_total_cost + holding_total_cost
+                            
                             # Delete the duplicate holding
                             db.session.delete(holding)
                         else:
