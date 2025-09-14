@@ -1,533 +1,254 @@
-# Docker Backend Testing Guide
+# Docker Comprehensive Testing Guide
 
-This guide will help you test the Investment Tracker backend in a Docker environment, including the import functionality with your CSV data.
+This guide provides a complete testing methodology for the Investment Tracker backend in Docker, including data integrity validation and comprehensive system verification.
 
 ## 📋 Prerequisites
 
-- Docker Desktop installed and running
-- Docker Compose v2 or higher
-- Your CSV file in the `data/` directory
-- Basic knowledge of Docker commands
+- Docker Desktop/Docker Engine running
+- Docker Compose v2+
+- SSH access to deployment environment
+- CSV file in `data/` directory
 
-## 🏗️ Docker Environment Setup
+## 🧪 Comprehensive Test Suite
 
-### 1. Project Structure
-```
-investment-tracker/
-├── backend/
-│   ├── import_data.py          ← CSV import script
-│   ├── Dockerfile              ← Backend container config
-│   ├── docker-entrypoint.sh    ← Container startup script
-│   ├── requirements.txt        ← Python dependencies
-│   └── app/                    ← Flask application
-├── data/
-│   └── combined_transactions_updated.csv  ← Your transaction data
-├── docker-compose.yml          ← Multi-service orchestration
-└── docker-compose.test.yml     ← Testing configuration
-```
+### Test Categories
+1. **Basic Health Tests** - Container status, database connectivity
+2. **Data Integrity Tests** - Platform consolidation, security validation  
+3. **API Endpoint Tests** - REST API functionality
+4. **Performance Tests** - Query performance, resource usage
+5. **Integration Tests** - CSV import, cross-service operations
+6. **Security Tests** - Authentication, authorization
+7. **Edge Case Tests** - Error handling, boundary conditions
 
-## 🐳 Testing Methods
+## 🚀 Quick Start Testing
 
-### Method 1: Quick Backend Test (Recommended for Development)
-
-**Step 1: Build and Start Services**
+### Step 1: Service Health Check
 ```bash
-# Navigate to project root
-cd investment-tracker
-
-# Build and start all services
-docker-compose up --build -d
-
-# Check service status
+# Check all services are running
 docker-compose ps
-```
 
-**Step 2: Verify Backend Health**
-```bash
-# Check backend health endpoint
+# Verify backend health
 curl http://localhost:5000/api/health
 
-# Expected response:
-# {"status": "healthy", "timestamp": "2025-09-14T12:00:00"}
-```
-
-**Step 3: Test Database Connection**
-```bash
-# Connect to backend container
-docker-compose exec backend bash
-
-# Inside container - test database
-python -c "
+# Test database connection
+docker-compose exec backend python -c "
 from app import create_app, db
 app = create_app()
 with app.app_context():
     print('Database connection:', db.engine.url)
-    print('Tables:', db.engine.table_names())
+    from sqlalchemy import inspect
+    inspector = inspect(db.engine)
+    tables = inspector.get_table_names()
+    print('Tables:', tables)
+    print('✅ Database connection working!')
 "
 ```
 
-### Method 2: CSV Import Testing
-
-**Step 1: Verify CSV File Mount**
+### Step 2: Data Quality Verification
 ```bash
-# Check if CSV file is accessible in container
-docker-compose exec backend ls -la /app/data/
-
-# Expected output:
-# -rw-r--r-- 1 root root 28198 Sep 14 12:00 combined_transactions_updated.csv
-```
-
-**Step 2: Test Import Script**
-```bash
-# Run import script inside container
-docker-compose exec backend python import_data.py import
-
-# Expected output:
-# CSV file found: /app/data/combined_transactions_updated.csv
-# Processing 337 transactions...
-# Imported 337 transactions successfully
-```
-
-**Step 3: Verify Data Import**
-```bash
-# Check imported data
+# Run comprehensive data quality check
 docker-compose exec backend python -c "
 from app import create_app, db
-from app.models import Transaction, Security, Platform
+from app.models import Transaction, Security, Platform, Holding
+from collections import Counter
 app = create_app()
 with app.app_context():
-    print(f'Transactions: {Transaction.query.count()}')
-    print(f'Securities: {Security.query.count()}')
-    print(f'Platforms: {Platform.query.count()}')
+    print('🧪 COMPREHENSIVE DATA QUALITY CHECK')
+    print('=' * 50)
+    
+    # Basic counts
+    platforms = Platform.query.count()
+    securities = Security.query.count() 
+    transactions = Transaction.query.count()
+    holdings = Holding.query.count()
+    print(f'Platforms: {platforms} (should be 6)')
+    print(f'Securities: {securities} (should be ~77)')
+    print(f'Transactions: {transactions}')
+    print(f'Holdings: {holdings}')
+    
+    # Platform analysis
+    all_platforms = Platform.query.all()
+    platform_names = [p.name for p in all_platforms]
+    name_counts = Counter(platform_names)
+    duplicates = [name for name, count in name_counts.items() if count > 1]
+    print(f'Duplicate platforms: {duplicates}')
+    
+    # Foreign key integrity
+    all_holdings = Holding.query.all()
+    valid_platform_ids = {p.id for p in Platform.query.all()}
+    valid_security_ids = {s.id for s in Security.query.all()}
+    
+    invalid_platforms = sum(1 for h in all_holdings if h.platform_id not in valid_platform_ids)
+    invalid_securities = sum(1 for h in all_holdings if h.security_id not in valid_security_ids)
+    
+    print(f'Holdings with invalid platform refs: {invalid_platforms}')
+    print(f'Holdings with invalid security refs: {invalid_securities}')
+    print('✅ Data quality check completed!')
 "
 ```
 
-### Method 3: Comprehensive API Testing
-
-**Step 1: Test Authentication**
+### Step 3: Run Existing Verification Scripts
 ```bash
-# Create test user
-curl -X POST http://localhost:5000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "testuser",
-    "email": "test@example.com",
-    "password": "testpass123"
-  }'
+# Holdings integrity check
+docker-compose exec backend python /app/check_holdings_integrity.py
 
-# Login and get token
-TOKEN=$(curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "testpass123"
-  }' | jq -r '.access_token')
+# Platform status check  
+docker-compose exec backend python /app/check_platform_status.py
 
-echo "Token: $TOKEN"
+# Securities verification
+docker-compose exec backend python /app/verify_securities.py
 ```
 
-**Step 2: Test Portfolio Endpoints**
-```bash
-# Get portfolios (should be empty initially)
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:5000/api/portfolios
+## 🔧 Data Quality Management
 
-# Create a test portfolio
-curl -X POST http://localhost:5000/api/portfolios \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Portfolio",
-    "description": "Docker test portfolio"
-  }'
+### Safe Cleanup Scripts (if duplicates found)
+```bash
+# If platform count > 6, run cleanup
+docker-compose exec backend python /app/safe_cleanup_platforms.py
+
+# Fix security data issues
+docker-compose exec backend python /app/safe_fix_securities.py
+
+# Verify cleanup worked
+docker-compose exec backend python -c "
+from app import create_app, db
+from app.models import Platform, Security
+app = create_app()
+with app.app_context():
+    print(f'Platforms after cleanup: {Platform.query.count()}')
+    print(f'Securities after cleanup: {Security.query.count()}')
+"
 ```
 
-**Step 3: Test Data Endpoints**
-```bash
-# Get securities (should show imported stocks)
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:5000/api/securities
+## 🌐 API Testing
 
-# Get platforms (should show Trading212, etc.)
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:5000/api/platforms
+### Test Core Endpoints
+```bash
+# Test platforms API
+curl -s http://localhost:5000/api/platforms | head -c 200
+
+# Test securities API  
+curl -s http://localhost:5000/api/securities | head -c 200
+
+# Test API module imports
+docker-compose exec backend python -c "
+try:
+    from app.api.platforms import platforms_bp
+    from app.api.securities import securities_bp
+    from app.api.transactions import transactions_bp
+    from app.api.holdings import holdings_bp
+    print('✅ All API modules imported successfully')
+except Exception as e:
+    print(f'❌ API import failed: {e}')
+"
 ```
 
-## 🧪 Testing Scenarios
+## 📊 CSV Import Testing
 
-### Scenario 1: Fresh Database Import
+### Verify Import Functionality
 ```bash
-# Clean slate test
-docker-compose down -v  # Remove volumes
-docker-compose up -d
-docker-compose exec backend python import_data.py import
+# Check CSV file mount
+docker-compose exec backend ls -la /app/data/
+
+# Test CSV import logic
+docker-compose exec backend python -c "
+import sys, os
+sys.path.insert(0, '/app')
+csv_path = '/app/data/combined_transactions_updated.csv'
+print(f'CSV file exists: {os.path.exists(csv_path)}')
+
+from import_data import get_default_csv_path
+default_path = get_default_csv_path()
+print(f'Default CSV path: {default_path}')
+print(f'Path exists: {os.path.exists(default_path)}')
+print('✅ CSV import paths working correctly')
+"
 ```
 
-### Scenario 2: LSE Stock Price Testing
+## 📈 Performance Testing
+
+### LSE Stock Compatibility
 ```bash
 # Test yfinance integration for LSE stocks
 docker-compose exec backend python -c "
 import yfinance as yf
 stocks = ['ULVR.L', 'HSBA.L', 'SHEL.L']
+print('Testing LSE stock data retrieval:')
 for stock in stocks:
-    ticker = yf.Ticker(stock)
-    info = ticker.info
-    print(f'{stock}: {info.get(\"longName\", \"Unknown\")}')
+    try:
+        ticker = yf.Ticker(stock)
+        info = ticker.info
+        print(f'  {stock}: {info.get(\"longName\", \"Unknown\")}')
+    except Exception as e:
+        print(f'  {stock}: Error - {e}')
 "
 ```
 
-### Scenario 3: Performance Testing
+## 🚨 Troubleshooting
+
+### Common Issues
+
+**Issue: Platform Duplicates**
 ```bash
-# Load test with ab (Apache Bench)
-docker run --rm --network investment-tracker_portfolio_network \
-  httpd:alpine ab -n 100 -c 10 http://backend:5000/api/health
+# Symptoms: Platform count > 6
+# Solution: Run safe cleanup scripts (see Data Quality Management section)
 ```
 
-## 📊 Monitoring and Logs
-
-### View Service Logs
+**Issue: Backend Container Exits**
 ```bash
-# All services
-docker-compose logs -f
-
-# Backend only
-docker-compose logs -f backend
-
-# Database only
-docker-compose logs -f db
-
-# Last 50 lines
-docker-compose logs --tail 50 backend
-```
-
-### Monitor Resource Usage
-```bash
-# Container stats
-docker stats
-
-# Service-specific stats
-docker-compose top backend
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues and Solutions
-
-**Issue 1: Database Connection Failed**
-```bash
-# Check database is running
-docker-compose ps db
-
-# Verify database health
-docker-compose exec db pg_isready -U postgres
-
-# Check network connectivity
-docker-compose exec backend nc -zv db 5432
-```
-
-**Issue 2: CSV File Not Found**
-```bash
-# Verify volume mount
-docker-compose exec backend ls -la /app/data/
-
-# Check docker-compose.yml volumes section
-# Should have: - ./data:/app/data
-```
-
-**Issue 3: Import Script Errors**
-```bash
-# Check Python path
-docker-compose exec backend python -c "import sys; print(sys.path)"
-
-# Test import_data module
-docker-compose exec backend python -c "from import_data import get_default_csv_path; print(get_default_csv_path())"
-```
-
-**Issue 4: yfinance/LSE Stock Issues**
-```bash
-# Test yfinance installation
-docker-compose exec backend pip list | grep yfinance
-
-# Test simple yfinance call
-docker-compose exec backend python -c "import yfinance as yf; print(yf.Ticker('AAPL').info.get('longName'))"
-```
-
-## 🧪 Automated Testing Suite
-
-### Run Unit Tests in Docker
-```bash
-# Run all backend tests
-docker-compose exec backend python -m pytest tests/ -v
-
-# Run specific test categories
-docker-compose exec backend python -m pytest tests/unit/ -v
-docker-compose exec backend python -m pytest tests/integration/ -v
-
-# Run with coverage
-docker-compose exec backend python -m pytest tests/ --cov=app --cov-report=html
-```
-
-### Run Import-Specific Tests
-```bash
-# Test import functionality
-docker-compose exec backend python -m pytest tests/test_import_data.py -v
-
-# Test LSE compatibility
-docker-compose exec backend python -m pytest tests/test_lse_compatibility.py -v
-
-# Test relative paths
-docker-compose exec backend python tests/test_relative_paths.py
-```
-
-## 🚀 Production Simulation
-
-### Test with Production-like Settings
-```bash
-# Use production docker-compose
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-# Test with environment variables
-FLASK_ENV=production docker-compose up -d
-```
-
-### Test Data Persistence
-```bash
-# Import data
-docker-compose exec backend python import_data.py import
-
-# Stop and restart services
-docker-compose down
-docker-compose up -d
-
-# Verify data persisted
-docker-compose exec backend python -c "
-from app import create_app, db
-from app.models import Transaction
-app = create_app()
-with app.app_context():
-    print(f'Transactions after restart: {Transaction.query.count()}')
-"
-```
-
-## 📝 Test Checklist
-
-### ✅ Backend Functionality
-- [ ] Container builds successfully
-- [ ] Database connection established
-- [ ] Health endpoint responds
-- [ ] Authentication works
-- [ ] API endpoints accessible
-
-### ✅ Import Functionality  
-- [ ] CSV file accessible in container
-- [ ] import_data.py executes without errors
-- [ ] Transactions imported successfully
-- [ ] LSE stocks work with yfinance
-- [ ] Fee calculations correct
-
-### ✅ Data Persistence
-- [ ] Data survives container restart
-- [ ] Volume mounts working
-- [ ] Database integrity maintained
-
-### ✅ Performance
-- [ ] Response times acceptable
-- [ ] Memory usage reasonable
-- [ ] No memory leaks during operation
-
-## 🛠️ Development Workflow
-
-### Quick Development Cycle
-```bash
-# 1. Make code changes
-# 2. Rebuild and restart
-docker-compose up --build -d backend
-
-# 3. Test changes
-docker-compose exec backend python import_data.py import
-
-# 4. View logs
-docker-compose logs -f backend
-```
-
-### Debugging in Container
-```bash
-# Interactive shell
-docker-compose exec backend bash
-
-# Python REPL with app context
-docker-compose exec backend python -c "
-from app import create_app
-app = create_app()
-with app.app_context():
-    # Your debugging code here
-    pass
-"
-```
-
-## � Troubleshooting Common Issues
-
-### Issue: Backend Container Exits with Code 3
-
-**Symptoms:**
-```bash
-docker-compose ps
-# Shows backend container with "Exit 3" status
-investment-tracker_backend_1    /usr/local/bin/docker-entr...    Exit 3
-investment-tracker_db_1         docker-entrypoint.sh postgres   Up (healthy)
-```
-
-**Diagnostic Steps:**
-
-**Step 1: Check Backend Logs**
-```bash
-cd ~/investment-tracker
+# Check logs
 docker-compose logs backend --tail=50
-```
 
-**Step 2: Check Container Status**
-```bash
-docker-compose ps -a
-```
-
-**Step 3: Check System Resources (Raspberry Pi)**
-```bash
-free -h          # Memory usage
-df -h            # Disk space
-docker stats     # Container resource usage
-```
-
-**Common Causes & Solutions:**
-
-**Cause 1: Database Connection Timeout**
-```bash
-# Solution: Add database wait logic
-docker-compose logs db | grep "ready"
-# Restart with proper timing
+# Common fix: Restart with proper timing
 docker-compose down
-docker-compose up -d db redis
-sleep 10  # Wait for DB to be ready
-docker-compose up -d backend
-```
-
-**Cause 2: Missing Environment Variables**
-```bash
-# Check .env file exists
-cat .env
-
-# Required variables:
-DATABASE_URL=postgresql://user:password@db:5432/investment_tracker
-REDIS_URL=redis://redis:6379/0
-FLASK_ENV=production
-SECRET_KEY=your-secret-key
-```
-
-**Cause 3: Python Dependencies Issues**
-```bash
-# Force rebuild without cache
-docker-compose down
-docker-compose build --no-cache backend
-docker-compose up -d
-```
-
-**Cause 4: Memory Limitations (Raspberry Pi)**
-```bash
-# Check available memory
-free -m
-# If low memory, restart with resource limits
-docker-compose down
-docker-compose up -d --scale backend=1
-```
-
-**Quick Fix Sequence:**
-```bash
-# Complete restart with proper timing
-docker-compose down -v
 docker-compose up -d db redis
 sleep 15
 docker-compose up -d backend
-docker-compose logs -f backend
 ```
 
-### Issue: CSV Import Fails
-
-**Symptoms:**
-- Backend starts but import script fails
-- "File not found" errors
-
-**Solutions:**
-```bash
-# Check file permissions
-ls -la data/combined_transactions_updated.csv
-
-# Check volume mount
-docker-compose exec backend ls -la /app/data/
-
-# Test import manually
-docker-compose exec backend python import_data.py import
-```
-
-### Issue: API Endpoints Not Responding
-
-**Symptoms:**
-- Backend appears healthy but API calls fail
-- Connection refused errors
-
-**Solutions:**
-```bash
-# Check port mapping
-docker-compose ps
-# Should show: 0.0.0.0:5000->5000/tcp
-
-# Test from inside container
-docker-compose exec backend curl http://localhost:5000/api/health
-
-# Check firewall (Raspberry Pi)
-sudo ufw status
-```
-
-### Issue: Database Connection Fails
-
-**Symptoms:**
-- "Connection refused" to PostgreSQL
-- Database not ready errors
-
-**Solutions:**
+**Issue: Database Connection Failed**
 ```bash
 # Check database health
 docker-compose exec db pg_isready -U postgres
 
-# Reset database
+# Reset if needed
 docker-compose down -v
-docker-compose up -d db
-# Wait for healthy status before starting backend
+docker-compose up -d
 ```
 
-## �💡 Tips and Best Practices
+## ✅ Test Checklist
 
-1. **Always check logs first** when troubleshooting
-2. **Use health checks** to verify service readiness
-3. **Test with fresh volumes** to simulate clean deployments
-4. **Monitor resource usage** during testing (especially on Raspberry Pi)
-5. **Use .env files** for environment-specific configurations
-6. **Keep test data separate** from production data
-7. **Regular cleanup** of unused containers and volumes
-8. **Start services in order**: DB → Redis → Backend
-9. **Allow startup time** especially on slower hardware
-10. **Check system resources** before deploying on Raspberry Pi
+### Essential Verification Points
+- [ ] All containers running (`docker-compose ps`)
+- [ ] Backend health endpoint responding
+- [ ] Database connection working
+- [ ] Platform count = 6 (not 114+)
+- [ ] No foreign key integrity issues
+- [ ] CSV file accessible in container
+- [ ] API endpoints responding
+- [ ] LSE stock data retrieval working
 
-## 🔗 Useful Commands Reference
+### Post-Import Validation
+- [ ] Transaction count preserved
+- [ ] Holdings integrity maintained  
+- [ ] No duplicate platforms created
+- [ ] Security exchange assignments correct
+- [ ] All API modules importable
 
+## 🔄 Quick Reset Procedure
 ```bash
-# Essential Docker Compose commands
-docker-compose up -d              # Start services in background
-docker-compose down               # Stop and remove containers
-docker-compose down -v            # Stop and remove volumes
-docker-compose build --no-cache   # Force rebuild
-docker-compose exec backend bash  # Interactive shell
-docker-compose logs -f backend    # Follow logs
-docker-compose ps                 # Service status
-docker system prune              # Cleanup unused resources
+# Complete environment reset
+docker-compose down -v
+docker-compose up -d db redis
+sleep 15
+docker-compose up -d backend
+
+# Wait for health
+curl http://localhost:5000/api/health
+
+# Run cleanup if needed
+docker-compose exec backend python /app/safe_cleanup_platforms.py
+docker-compose exec backend python /app/safe_fix_securities.py
 ```
 
-This comprehensive testing guide ensures your backend works perfectly in Docker while maintaining all the import functionality for your investment data! 🚀
+This streamlined testing guide focuses on the essential verification steps that ensure your investment tracker is running correctly with clean, consolidated data! 🚀
