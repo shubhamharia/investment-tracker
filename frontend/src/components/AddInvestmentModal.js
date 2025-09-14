@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, DollarSign, Calendar, Building, TrendingUp } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const AddInvestmentModal = ({ isOpen, onClose, onAdd }) => {
   const [formData, setFormData] = useState({

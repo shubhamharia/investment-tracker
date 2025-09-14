@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, SortAsc, SortDesc, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, SortAsc, SortDesc, TrendingUp, TrendingDown } from 'lucide-react';
 
 const PortfolioView = () => {
   const [portfolios, setPortfolios] = useState([]);
@@ -76,7 +76,7 @@ const PortfolioView = () => {
     setPortfolios(samplePortfolios);
     setHoldings(sampleHoldings);
     setSelectedPortfolio(samplePortfolios[0]);
-  }, []);
+  }, [samplePortfolios, sampleHoldings]);
 
   const handleSort = (field) => {
     if (sortField === field) {

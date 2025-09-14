@@ -3,18 +3,19 @@ import time
 import yfinance as yf
 from datetime import datetime, timedelta
 from decimal import Decimal
-from requests.exceptions import RequestException, HTTPError, Timeout
+from requests.exceptions import RequestException, HTTPError, Timeout, ConnectionError
 from ..models import Security, PriceHistory, Holding
 from ..extensions import db
 import pandas as pd
 import logging
+import requests
 
 class PriceService:
     def __init__(self):
         self.debug = os.environ.get("DEBUG_YAHOO") == "1"
-        self.timeout = int(os.environ.get("YAHOO_API_TIMEOUT", "5"))
+        self.timeout = int(os.environ.get("YAHOO_API_TIMEOUT", "10"))
         self._max_retries = int(os.environ.get("YAHOO_MAX_RETRIES", "3"))
-        self._initial_backoff = float(os.environ.get("YAHOO_INITIAL_BACKOFF", "1.0"))
+        self._initial_backoff = float(os.environ.get("YAHOO_INITIAL_BACKOFF", "2.0"))
         self._backoff_delay = self._initial_backoff
 
         if self.debug:
@@ -29,12 +30,33 @@ class PriceService:
     def _increase_backoff(self):
         """Increase the backoff delay exponentially"""
         self._backoff_delay *= 2  # Exponential backoff
-        max_backoff = float(os.environ.get("YAHOO_MAX_BACKOFF", "32.0"))
+        max_backoff = float(os.environ.get("YAHOO_MAX_BACKOFF", "60.0"))
         self._backoff_delay = min(self._backoff_delay, max_backoff)
         if self.debug:
             self._debug_log(f"Increased backoff delay to {self._backoff_delay}s")
 
-        
+    def _test_network_connectivity(self):
+        """Test basic network connectivity"""
+        try:
+            # Test basic internet connectivity
+            response = requests.get("https://httpbin.org/status/200", timeout=5)
+            self._debug_log(f"Network test: HTTP {response.status_code}")
+            return True
+        except Exception as e:
+            self._debug_log(f"Network connectivity issue: {e}")
+            return False
+
+    def _test_yahoo_finance_connectivity(self):
+        """Test Yahoo Finance specific connectivity"""
+        try:
+            # Test Yahoo Finance API endpoint
+            test_url = "https://query1.finance.yahoo.com/v8/finance/chart/AAPL"
+            response = requests.get(test_url, timeout=10)
+            self._debug_log(f"Yahoo Finance test: HTTP {response.status_code}")
+            return response.status_code == 200
+        except Exception as e:
+            self._debug_log(f"Yahoo Finance connectivity issue: {e}")
+            return False
 
     def get_current_price(self, security):
         """
@@ -52,6 +74,13 @@ class PriceService:
             HTTPError: On API errors (including rate limits)
             Timeout: On request timeout
         """
+        # Test connectivity before attempting price fetch
+        if not self._test_network_connectivity():
+            raise ConnectionError("No internet connectivity detected")
+        
+        if not self._test_yahoo_finance_connectivity():
+            raise ConnectionError("Yahoo Finance API is not accessible")
+
         attempts = 0
         last_error = None
 
@@ -60,15 +89,28 @@ class PriceService:
                 start_time = datetime.now()
                 self._debug_log(f"Fetching price for {security.yahoo_symbol} (attempt {attempts + 1}/{self._max_retries})")
 
+                # Create ticker with session configuration
                 ticker = yf.Ticker(security.yahoo_symbol)
-                self._debug_log("Getting ticker history")
-                hist = ticker.history(period="1d")
+                
+                # Configure session with proper timeout and headers
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                })
+                ticker._session = session
+                
+                self._debug_log("Getting ticker history with extended timeout")
+                hist = ticker.history(period="1d", timeout=self.timeout)
 
                 response_time = (datetime.now() - start_time).total_seconds()
                 self._debug_log(f"Yahoo Finance API request completed in {response_time:.2f} seconds")
 
                 if hist.empty:
-                    raise ValueError(f"No price data found for {security.yahoo_symbol}")
+                    self._debug_log(f"Empty response for {security.yahoo_symbol}, trying alternate period")
+                    # Try with longer period
+                    hist = ticker.history(period="5d", timeout=self.timeout)
+                    if hist.empty:
+                        raise ValueError(f"No price data found for {security.yahoo_symbol}")
 
                 # Get all price data from the latest row
                 latest_data = hist.iloc[-1]
@@ -92,6 +134,13 @@ class PriceService:
                 self._debug_log(f"Latest price data: {price_data}")
                 return price_data
 
+            except (ConnectionError, Timeout) as e:
+                last_error = e
+                self._debug_log(f"Network error: {type(e).__name__} - {str(e)}")
+                self._increase_backoff()
+                time.sleep(self._backoff_delay)
+                attempts += 1
+
             except HTTPError as e:
                 last_error = e
                 if hasattr(e.response, 'status_code') and e.response.status_code == 429:
@@ -102,13 +151,6 @@ class PriceService:
                 else:
                     raise  # Re-raise other HTTP errors
 
-            except (RequestException, Timeout) as e:
-                last_error = e
-                self._debug_log(f"Network error: {type(e).__name__} - {str(e)}")
-                self._increase_backoff()
-                time.sleep(self._backoff_delay)
-                attempts += 1
-
             except ValueError as e:
                 self._debug_log(f"Data validation error: {str(e)}")
                 self._debug_log(f"Error fetching Yahoo Finance data for {security.yahoo_symbol}")
@@ -116,7 +158,13 @@ class PriceService:
 
             except Exception as e:
                 self._debug_log(f"Unexpected error: {type(e).__name__} - {str(e)}")
-                raise  # Don't retry on unexpected errors
+                last_error = e
+                # For unexpected errors, try once more then give up
+                if attempts < 1:
+                    time.sleep(self._backoff_delay)
+                    attempts += 1
+                else:
+                    raise
 
         # If we get here, we've exhausted all retries
         logging.error(f"Max retries exceeded for {security.yahoo_symbol}")

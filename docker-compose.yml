@@ -58,6 +58,54 @@ services:
     networks:
       - portfolio_network
 
+  celery-worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/docker-entrypoint.sh", "celery-worker"]
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/portfolio
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - portfolio_network
+
+  celery-beat:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/docker-entrypoint.sh", "celery-beat"]
+    environment:
+      - FLASK_APP=app
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/portfolio
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - portfolio_network
+
 volumes:
   postgres_data:
 
