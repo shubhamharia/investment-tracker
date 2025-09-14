@@ -186,6 +186,39 @@ def import_csv_data(csv_file_path):
     # Clean column names
     df.columns = df.columns.str.strip().str.lower()
     
+    # Get or create a default portfolio for imported transactions
+    from app.models import Portfolio, User
+    
+    # Try to find a default user or create one
+    default_user = User.query.filter_by(email='import@system.local').first()
+    if not default_user:
+        default_user = User(
+            username='import_user',
+            email='import@system.local',
+            password_hash='$2b$12$disabled',  # Disabled password
+            is_active=False  # Mark as system user
+        )
+        db.session.add(default_user)
+        db.session.flush()
+    
+    # Get or create default portfolio
+    default_portfolio = Portfolio.query.filter_by(
+        user_id=default_user.id,
+        name='Imported Transactions'
+    ).first()
+    
+    if not default_portfolio:
+        default_portfolio = Portfolio(
+            name='Imported Transactions',
+            user_id=default_user.id,
+            base_currency='GBP',
+            description='Auto-created portfolio for imported CSV transactions'
+        )
+        db.session.add(default_portfolio)
+        db.session.flush()
+    
+    print(f"Using portfolio: {default_portfolio.name} (ID: {default_portfolio.id})")
+    
     imported_count = 0
     error_count = 0
     
@@ -247,6 +280,7 @@ def import_csv_data(csv_file_path):
             
             # Check if transaction already exists (avoid duplicates)
             existing = Transaction.query.filter_by(
+                portfolio_id=default_portfolio.id,
                 platform_id=platform.id,
                 security_id=security.id,
                 transaction_date=transaction_date,
@@ -261,6 +295,7 @@ def import_csv_data(csv_file_path):
             
             # Create transaction record
             transaction = Transaction(
+                portfolio_id=default_portfolio.id,
                 platform_id=platform.id,
                 security_id=security.id,
                 transaction_type=transaction_type,
@@ -393,8 +428,17 @@ if __name__ == '__main__':
             
             if imported > 0:
                 print("\nRecalculating holdings...")
-                PortfolioService.calculate_holdings()
-                print("Holdings calculated successfully")
+                # Get the default portfolio to calculate holdings for
+                from app.models import Portfolio, User
+                default_user = User.query.filter_by(email='import@system.local').first()
+                if default_user:
+                    default_portfolio = Portfolio.query.filter_by(
+                        user_id=default_user.id,
+                        name='Imported Transactions'
+                    ).first()
+                    if default_portfolio:
+                        PortfolioService.calculate_holdings(default_portfolio.id)
+                        print("Holdings calculated successfully")
                 
                 print("\nStarting historical price import...")
                 import_historical_prices_for_all_securities()
