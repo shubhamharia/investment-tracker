@@ -22,6 +22,11 @@ app = create_app()
 
 def get_default_csv_path():
     """Get the default CSV file path relative to this script"""
+    # Check if running in Docker container
+    if os.path.exists('/app/data/combined_transactions_updated.csv'):
+        return '/app/data/combined_transactions_updated.csv'
+    
+    # Fallback to relative path for local development
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(script_dir, '..', 'data', 'combined_transactions_updated.csv')
     return os.path.normpath(csv_path)
