@@ -1,0 +1,183 @@
+# Investment Tracker - Data Quality Issues & Fix Summary
+
+## ISSUES IDENTIFIED
+
+### 1. PLATFORM DUPLICATION ISSUE
+- **Problem**: 114 platforms created instead of expected 7
+- **Root Cause**: Inconsistent platform naming in CSV data
+  - "Trading 212_ISA" (with space) - 127 transactions
+  - "Trading212_ISA" (without space) - 35 transactions  
+  - "Trading 212_GIA" (with space) - 107 transactions
+  - "Trading212_GIA" (without space) - 4 transactions
+  - Plus: Freetrade (54), AJBELL_LISA (4), HL_LISA (4)
+
+### 2. SECURITY DATA QUALITY ISSUES
+- **Issue A**: UK stocks incorrectly marked as exchange="NASDAQ" instead of "LSE"
+- **Issue B**: UK stocks showing currency="USD" instead of "GBP" or "GBX"  
+- **Issue C**: Duplicate securities with same ISIN but different tickers
+- **Issue D**: Missing security names (all showing name=null)
+
+### EXAMPLES OF PROBLEMATIC SECURITIES:
+```
+ID 13: HSBA, ISIN=GB0005405286, exchange=NASDAQ, currency=GBP  (WRONG - should be LSE)
+ID 47: HSBA.L, ISIN=GB0005405286, exchange=LSE, currency=GBX   (CORRECT)
+```
+
+## SOLUTION FILES CREATED
+
+The following Python scripts have been created to fix these issues:
+
+1. **check_platform_status.py** - Diagnose platform duplication
+2. **cleanup_platforms.py** - Fix platform duplicates
+3. **verify_securities.py** - Diagnose security data issues
+4. **fix_securities.py** - Fix security data problems
+5. **import_data.py** - Updated with better platform normalization
+
+## STEP-BY-STEP FIX PROCESS
+
+### STEP 1: Copy Files to Raspberry Pi
+Copy these files from your Windows machine to the Pi:
+- backend/check_platform_status.py
+- backend/cleanup_platforms.py  
+- backend/verify_securities.py
+- backend/fix_securities.py
+- backend/import_data.py (updated version)
+
+### STEP 2: Connect to Raspberry Pi
+```bash
+ssh pi@192.168.1.100
+cd investment-tracker
+```
+
+### STEP 3: Run Diagnostics
+```bash
+# Check current platform situation
+docker-compose exec backend python /app/check_platform_status.py
+
+# Check security data issues  
+docker-compose exec backend python /app/verify_securities.py
+
+# Check current counts
+docker-compose exec backend python -c "
+from app import create_app, db
+from app.models.platform import Platform
+from app.models.security import Security
+from app.models.transaction import Transaction
+
+app = create_app()
+with app.app_context():
+    print(f'Platforms: {Platform.query.count()}')
+    print(f'Securities: {Security.query.count()}')
+    print(f'Transactions: {Transaction.query.count()}')
+"
+```
+
+### STEP 4: Apply Fixes
+```bash
+# Fix platform duplicates (should reduce from 114 to ~7)
+docker-compose exec backend python /app/cleanup_platforms.py
+
+# Fix security data issues
+docker-compose exec backend python /app/fix_securities.py
+```
+
+### STEP 5: Verify Fixes Applied
+```bash
+# Check final platform count
+docker-compose exec backend python /app/check_platform_status.py
+
+# Check securities are fixed
+curl http://localhost:5000/api/securities | head -20
+
+# Final summary
+docker-compose exec backend python -c "
+from app import create_app, db
+from app.models.platform import Platform
+from app.models.security import Security
+from app.models.transaction import Transaction
+
+app = create_app()
+with app.app_context():
+    print('=== FINAL SUMMARY ===')
+    print(f'Platforms: {Platform.query.count()}')
+    print(f'Securities: {Security.query.count()}')
+    print(f'Transactions: {Transaction.query.count()}')
+    
+    print('\nPlatform breakdown:')
+    platforms = Platform.query.all()
+    for p in platforms:
+        tx_count = Transaction.query.filter_by(platform_id=p.id).count()
+        print(f'  {p.name}_{p.account_type}: {tx_count} transactions')
+    
+    print('\nExchange breakdown:')
+    from sqlalchemy import func
+    exchanges = db.session.query(Security.exchange, func.count(Security.id)).group_by(Security.exchange).all()
+    for exchange, count in exchanges:
+        print(f'  {exchange}: {count} securities')
+"
+```
+
+## EXPECTED RESULTS AFTER FIXES
+
+### Platform Consolidation:
+- **Before**: 114 platforms
+- **After**: 7 platforms
+  1. Trading212_ISA (162 transactions total)
+  2. Trading212_GIA (111 transactions total) 
+  3. Freetrade (54 transactions)
+  4. AJBELL_LISA (4 transactions)
+  5. HL_LISA (4 transactions)
+
+### Security Data Fixes:
+- UK stocks will have correct exchange="LSE"
+- UK stocks will have appropriate currency (GBP/GBX)
+- Duplicate securities consolidated
+- Improved data consistency
+
+## WHAT EACH SCRIPT DOES
+
+### check_platform_status.py
+- Shows current platform count and details
+- Groups platforms by normalized names
+- Shows transaction counts per platform
+
+### cleanup_platforms.py  
+- Identifies duplicate platforms by normalized name + account type
+- Consolidates duplicates into single records
+- Updates all transaction references
+- Removes duplicate platform records
+
+### verify_securities.py
+- Identifies UK stocks marked as NASDAQ
+- Finds currency mismatches
+- Detects duplicate securities by ISIN
+- Reports missing security names
+
+### fix_securities.py
+- Corrects exchange assignments (GB ISINs -> LSE)
+- Fixes currency assignments for UK stocks
+- Consolidates duplicate securities
+- Updates transaction references
+
+## BACKUP RECOMMENDATION
+
+Before running the fixes, consider backing up your database:
+```bash
+docker-compose exec postgres pg_dump -U investment_tracker investment_tracker > backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+## TROUBLESHOOTING
+
+If any script fails:
+1. Check Docker containers are running: `docker-compose ps`
+2. Check database connectivity: `docker-compose exec backend python -c "from app import db; print('DB OK')"`
+3. Check logs: `docker-compose logs backend`
+
+## PREVENTION
+
+The updated import_data.py includes enhanced platform normalization to prevent future duplications:
+- Removes spaces from platform names
+- Standardizes case variations  
+- Uses mapping dictionary for known variations
+
+This ensures consistent platform creation for future CSV imports.

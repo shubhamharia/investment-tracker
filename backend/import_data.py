@@ -91,8 +91,22 @@ def get_or_create_platform(platform_name):
         name = platform_name
         account_type = None
     
-    # Clean the name
-    name = name.replace(' ', '').replace('212', '212')
+    # Normalize the platform name (remove spaces, standardize case)
+    name = name.replace(' ', '').strip()
+    
+    # Standardize common platform name variations
+    name_mappings = {
+        'TRADING212': 'Trading212',
+        'Trading212': 'Trading212',
+        'trading212': 'Trading212',
+        'HL': 'HL',
+        'AJBELL': 'AJBELL',
+        'Freetrade': 'Freetrade',
+        'FREETRADE': 'Freetrade'
+    }
+    
+    # Apply name standardization
+    name = name_mappings.get(name, name)
     
     platform = Platform.query.filter_by(name=name, account_type=account_type).first()
     
