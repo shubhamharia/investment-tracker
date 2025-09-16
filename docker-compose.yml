@@ -60,13 +60,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    command: ["./docker-entrypoint.sh", "web"]
+    command: ["web"]
 
   # Celery Worker for Background Tasks
   celery:
     build: ./backend
     container_name: investment-tracker-celery-worker
-    command: ["./docker-entrypoint.sh", "celery-worker"]
+    command: ["celery-worker"]
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/investment_tracker
       - REDIS_URL=redis://redis:6379/0
@@ -90,7 +90,7 @@ services:
   celery-beat:
     build: ./backend
     container_name: investment-tracker-celery-beat
-    command: ["./docker-entrypoint.sh", "celery-beat"]
+    command: ["celery-beat"]
     environment:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/investment_tracker
       - REDIS_URL=redis://redis:6379/0

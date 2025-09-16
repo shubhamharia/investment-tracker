@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# IMPORTANT: Make the entrypoint script executable
+RUN chmod +x docker-entrypoint.sh
+
 # Create directories for logs and data
 RUN mkdir -p /app/logs /app/data
 
