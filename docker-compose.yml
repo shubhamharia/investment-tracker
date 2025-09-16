@@ -4,6 +4,7 @@ services:
   # PostgreSQL Database
   db:
     image: postgres:13-alpine
+    container_name: investment-tracker-db
     environment:
       - POSTGRES_DB=investment_tracker
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -20,6 +21,8 @@ services:
   # Redis for Celery
   redis:
     image: redis:6-alpine
+    container_name: investment-tracker-redis
+    hostname: redis
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,6 +36,7 @@ services:
   # Flask Backend
   backend:
     build: ./backend
+    container_name: investment-tracker-backend
     ports:
       - "5000:5000"
     environment:
@@ -56,12 +60,62 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    command: ["./docker-entrypoint.sh", "web"]
+
+  # Celery Worker for Background Tasks
+  celery:
+    build: ./backend
+    container_name: investment-tracker-celery-worker
+    command: ["./docker-entrypoint.sh", "celery-worker"]
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/investment_tracker
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    networks:
+      - portfolio_network
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.celery_tasks.celery", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Beat for Scheduled Tasks
+  celery-beat:
+    build: ./backend
+    container_name: investment-tracker-celery-beat
+    command: ["./docker-entrypoint.sh", "celery-beat"]
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/investment_tracker
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    networks:
+      - portfolio_network
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.celery_tasks.celery", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Frontend Nginx Server
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: investment-tracker-frontend
     ports:
       - "8000:80"
     depends_on:
