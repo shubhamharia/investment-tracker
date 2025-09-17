@@ -104,11 +104,6 @@ services:
       - ./data:/app/data
     networks:
       - portfolio_network
-    healthcheck:
-      test: ["CMD", "celery", "-A", "app.celery_tasks.celery", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Frontend Nginx Server
   frontend:
