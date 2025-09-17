@@ -199,6 +199,23 @@ def import_csv_data(csv_file_path):
     
     # Clean column names
     df.columns = df.columns.str.strip().str.lower()
+
+    # Try to parse timestamps into a sortable date column so we import oldest -> newest
+    def _parse_for_sort(ts):
+        d = parse_date(ts)
+        if d:
+            return d
+        # fallback: try pandas parsing
+        try:
+            return pd.to_datetime(ts, dayfirst=True, errors='coerce').date()
+        except Exception:
+            return None
+
+    df['__parsed_date__'] = df.get('timestamp').apply(_parse_for_sort) if 'timestamp' in df.columns else None
+    # Place rows with unknown dates at the end, and sort ascending so oldest transactions import first
+    if '__parsed_date__' in df.columns:
+        df['__parsed_date__'] = df['__parsed_date__'].fillna(pd.Timestamp.max.date())
+        df = df.sort_values('__parsed_date__', ascending=True).reset_index(drop=True)
     
     # Get or create a default portfolio for imported transactions
     from app.models import Portfolio, User
@@ -261,13 +278,51 @@ def import_csv_data(csv_file_path):
                 error_count += 1
                 continue
             
-            # Parse numeric values
+            # Parse numeric values with tolerant normalisation to avoid Decimal InvalidOperation
+            def _normalize_numeric(value):
+                if pd.isna(value):
+                    return None
+                s = str(value).strip()
+                if s == '':
+                    return None
+                # remove currency symbols and spaces
+                for ch in ['£', '$', '€', '¥', '\xa0']:
+                    s = s.replace(ch, '')
+                s = s.replace(' ', '')
+                # parentheses -> negative
+                if s.startswith('(') and s.endswith(')'):
+                    s = '-' + s[1:-1]
+                # Handle European style decimals: '1.234,56' -> '1234.56'
+                if s.count(',') == 1 and s.count('.') >= 1 and s.rfind('.') < s.rfind(','):
+                    s = s.replace('.', '').replace(',', '.')
+                else:
+                    if ',' in s and '.' not in s:
+                        s = s.replace(',', '.')
+                    else:
+                        s = s.replace(',', '')
+                # strip any non numeric characters
+                allowed = set('0123456789.-')
+                s = ''.join(ch for ch in s if ch in allowed)
+                if s == '' or s == '-' or s == '.':
+                    return None
+                return s
+
             try:
-                quantity = Decimal(str(row['quantity']))
-                price_per_share = Decimal(str(row['price_per_share']))
-                total_amount = Decimal(str(row['total_amount']))
-                fx_rate = Decimal(str(row.get('fx_rate', 1)))
-            except:
+                q_raw = _normalize_numeric(row.get('quantity'))
+                p_raw = _normalize_numeric(row.get('price_per_share'))
+                t_raw = _normalize_numeric(row.get('total_amount'))
+                f_raw = _normalize_numeric(row.get('fx_rate') if row.get('fx_rate') is not None else '1')
+
+                if q_raw is None or p_raw is None or t_raw is None:
+                    print(f"Row {index}: Error parsing numeric values")
+                    error_count += 1
+                    continue
+
+                quantity = Decimal(q_raw)
+                price_per_share = Decimal(p_raw)
+                total_amount = Decimal(t_raw)
+                fx_rate = Decimal(f_raw) if f_raw is not None else Decimal('1')
+            except Exception:
                 print(f"Row {index}: Error parsing numeric values")
                 error_count += 1
                 continue
