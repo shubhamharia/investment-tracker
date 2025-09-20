@@ -109,4 +109,8 @@ test_local_*.py
 simple_test.py
 *_temp.py
 cleanup.ps1
-CLEANUP_PLAN.md
+CLEANUP_PLAN.md# Ignore Python bytecode
+__pycache__/
+*.py[cod]
+# Ignore celery beat schedule state
+backend/celerybeat-schedule*
