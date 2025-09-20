@@ -1,11 +1,29 @@
+from flask import Blueprint, jsonify
+from app.api.auth import token_required
+from app.extensions import db
+
+bp = Blueprint('securities', __name__)
+
+
+@bp.route('/api/securities/<int:security_id>/dividends', methods=['GET'])
+@token_required
+def get_security_dividends(current_user, security_id):
+    from app.models import Dividend, Security
+    sec = db.session.get(Security, security_id)
+    if not sec:
+        return jsonify({'error': 'Not found'}), 404
+    divs = Dividend.query.filter_by(security_id=security_id).all()
+    return jsonify([d.to_dict() for d in divs]), 200
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
-from app.models import Security, PriceHistory
+from app.api.auth import token_required
 from app.extensions import db
 from app.services.service_manager import get_price_service
+from app.models import Security, PriceHistory, Dividend, SecurityMapping
+
 
 def create_blueprint():
-    """Create a new blueprint instance."""
+    """Create and return the securities blueprint used by the app factory."""
     bp = Blueprint('securities', __name__, url_prefix='/api/securities')
 
     @bp.route('/', methods=['GET'])
@@ -15,32 +33,20 @@ def create_blueprint():
 
     @bp.route('/<int:security_id>/price', methods=['GET'])
     def get_security_price(security_id):
-        """Get current price for a security"""
         security = db.session.get(Security, security_id)
         if not security:
             return jsonify({"error": "Security not found"}), 404
 
-        # Get latest price from price history
-        latest_price = PriceHistory.query.filter_by(
-            security_id=security_id
-        ).order_by(
-            PriceHistory.price_date.desc()
-        ).first()
-
+        latest_price = PriceHistory.query.filter_by(security_id=security_id).order_by(PriceHistory.price_date.desc()).first()
         if not latest_price:
-            # Try fetching current price if no history
             try:
                 price_service = get_price_service()
                 price = price_service.get_current_price(security)
-                # In test environment, use mock price
-                if not price and 'TESTING' in current_app.config:
-                    price = 100.00  # Mock price for testing
-                elif not price:
+                if price is None and current_app.config.get('TESTING'):
+                    price = 100.00
+                elif price is None:
                     return jsonify({"error": "No price data available"}), 404
-                return jsonify({
-                    "current_price": str(price),
-                    "currency": security.currency
-                })
+                return jsonify({"current_price": str(price), "currency": security.currency})
             except Exception as e:
                 return jsonify({"error": f"Service error: {str(e)}"}), 503
 
@@ -52,12 +58,10 @@ def create_blueprint():
 
     @bp.route('/<int:security_id>/price_history', methods=['GET'])
     def get_security_price_history(security_id):
-        """Get price history for a security"""
         security = db.session.get(Security, security_id)
         if not security:
             return jsonify({"error": "Security not found"}), 404
 
-        # Parse date range parameters
         try:
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
@@ -68,7 +72,6 @@ def create_blueprint():
         except ValueError:
             return jsonify({"error": "Invalid date format"}), 400
 
-        # Query price history
         query = PriceHistory.query.filter_by(security_id=security_id)
         if start_date:
             query = query.filter(PriceHistory.price_date >= start_date)
@@ -92,7 +95,6 @@ def create_blueprint():
 
     @bp.route('/<int:security_id>/update_price', methods=['POST'])
     def update_security_price(security_id):
-        """Update price for a security"""
         security = db.session.get(Security, security_id)
         if not security:
             return jsonify({"error": "Security not found"}), 404
@@ -103,60 +105,30 @@ def create_blueprint():
             if price is None:
                 return jsonify({"error": "Failed to get price"}), 503
 
-            # Check if we already have a price for today
             today = datetime.utcnow().date()
-            existing_price = PriceHistory.query.filter_by(
-                security_id=security.id,
-                price_date=today
-            ).first()
-
+            existing_price = PriceHistory.query.filter_by(security_id=security.id, price_date=today).first()
             if existing_price:
-                # Update existing price
                 existing_price.close_price = price
-                db.session.commit()
             else:
-                # Create new price history record
-                price_history = PriceHistory(
-                    security_id=security.id,
-                    close_price=price,
-                    price_date=today,
-                    currency=security.currency
-                )
+                price_history = PriceHistory(security_id=security.id, close_price=price, price_date=today, currency=security.currency)
                 db.session.add(price_history)
-                db.session.commit()
-            
-            return jsonify({
-                "status": "success",
-                "price": float(price),
-                "currency": security.currency
-            }), 200
+            db.session.commit()
+            return jsonify({"status": "success", "price": float(price), "currency": security.currency}), 200
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Price service error: {str(e)}")
-            return jsonify({
-                "error": "Service error",
-                "message": str(e)
-            }), 503
+            return jsonify({"error": "Service error", "message": str(e)}), 503
 
     @bp.route('/', methods=['POST'])
     def create_security():
-        data = request.get_json()
-        
-        # Validate required fields
-        if not data.get('ticker') or not data.get('name'):
+        data = request.get_json() or {}
+        # Accept either 'symbol' or 'ticker' for compatibility with tests
+        symbol = data.get('symbol') or data.get('ticker')
+        if not symbol or not data.get('name'):
             return jsonify({'error': 'Ticker and name are required'}), 400
-            
-        # Validate currency
         if data.get('currency') and data['currency'] not in ['USD', 'EUR', 'GBP']:
             return jsonify({'error': 'Invalid currency'}), 400
-            
-        security = Security(
-            ticker=data['ticker'],
-            name=data['name'],
-            currency=data.get('currency', 'USD'),
-            yahoo_symbol=data.get('yahoo_symbol')
-        )
-        
+        security = Security(symbol=symbol, name=data['name'], currency=data.get('currency', 'USD'), yahoo_symbol=data.get('yahoo_symbol'))
         try:
             db.session.add(security)
             db.session.commit()
@@ -170,8 +142,7 @@ def create_blueprint():
         security = db.session.get(Security, security_id)
         if not security:
             return jsonify({"error": "Security not found"}), 404
-        data = request.get_json()
-        
+        data = request.get_json() or {}
         security.ticker = data.get('ticker', security.ticker)
         security.name = data.get('name', security.name)
         security.currency = data.get('currency', security.currency)
@@ -199,5 +170,25 @@ def create_blueprint():
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
-            
+
+    # Add mappings route for a security (tests expect /api/securities/<id>/mappings)
+    @bp.route('/<int:security_id>/mappings', methods=['GET'])
+    @token_required
+    def security_mappings(current_user, security_id):
+        sec = db.session.get(Security, security_id)
+        if not sec:
+            return jsonify({'error': 'Security not found'}), 404
+        mappings = SecurityMapping.query.filter_by(security_id=security_id).all()
+        return jsonify([m.to_dict() for m in mappings]), 200
+
+    # Dividends list for a security
+    @bp.route('/<int:security_id>/dividends', methods=['GET'])
+    @token_required
+    def get_security_dividends(current_user, security_id):
+        sec = db.session.get(Security, security_id)
+        if not sec:
+            return jsonify({'error': 'Not found'}), 404
+        divs = Dividend.query.filter_by(security_id=security_id).all()
+        return jsonify([d.to_dict() for d in divs]), 200
+
     return bp

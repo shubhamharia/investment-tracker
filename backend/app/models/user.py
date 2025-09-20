@@ -16,7 +16,8 @@ class User(BaseModel):
     id = Column(Integer, primary_key=True)
     username = Column(String(64), unique=True, nullable=False, index=True)
     email = Column(String(120), unique=True, nullable=False, index=True)
-    password_hash = Column(String(128))
+    # Increase size to accommodate modern password hash outputs (bcrypt, scrypt, argon2)
+    password_hash = Column(String(256))
     is_active = Column(Boolean, default=True)
     first_name = Column(String(64))
     last_name = Column(String(64))
@@ -61,16 +62,16 @@ class User(BaseModel):
             }
             # Always use JWT_SECRET_KEY or fall back to SECRET_KEY
             secret = current_app.config.get('JWT_SECRET_KEY') or current_app.config['SECRET_KEY']
-            return jwt.encode(
-                payload,
-                secret,
-                algorithm='HS256'
-            )
+            token = jwt.encode(payload, secret, algorithm='HS256')
+            # PyJWT older versions may return bytes
+            if isinstance(token, bytes):
+                return token.decode('utf-8')
+            return token
         except jwt.InvalidTokenError as e:
-            print(f"Error generating token - invalid token: {e}")
+            current_app.logger.error(f"Error generating token - invalid token: {e}")
             return None
         except Exception as e:
-            print(f"Error generating token: {e}")
+            current_app.logger.error(f"Error generating token: {e}")
             return None
 
     @staticmethod
@@ -112,11 +113,13 @@ class User(BaseModel):
             'id': self.id,
             'username': self.username,
             'email': self.email,
-            'is_active': self.is_active,
             'first_name': self.first_name,
             'last_name': self.last_name,
-            'is_admin': self.is_admin
+            'is_admin': self.is_admin,
+            'created_at': self.created_at.isoformat() if getattr(self, 'created_at', None) else None,
+            'updated_at': self.updated_at.isoformat() if getattr(self, 'updated_at', None) else None
         }
 
     def __repr__(self):
-        return f'<User {self.id}>'
+        # Use username in repr so tests and logging show a helpful identifier
+        return f'<User {self.username}>'

@@ -38,6 +38,72 @@ def get_holdings(current_user, portfolio_id):
     holdings = db.session.query(Holding).filter_by(portfolio_id=portfolio_id).all()
     return jsonify([holding.to_dict() for holding in holdings])
 
+
+# Backwards-compatible endpoints used by tests: /api/holdings and /api/holdings/<id>
+@bp.route('/', methods=['GET'])
+@token_required
+def list_holdings(current_user):
+    # Optionally allow filtering by portfolio_id via query param
+    portfolio_id = request.args.get('portfolio_id')
+    query = db.session.query(Holding)
+    if portfolio_id:
+        query = query.filter_by(portfolio_id=int(portfolio_id))
+    holdings = query.all()
+    # Only return holdings the current user owns
+    results = []
+    for h in holdings:
+        try:
+            if h.portfolio and h.portfolio.user_id == current_user.id:
+                results.append(h.to_dict())
+        except Exception:
+            pass
+    return jsonify(results)
+
+
+@bp.route('/<int:holding_id>', methods=['GET'])
+@token_required
+def get_holding_by_id(current_user, holding_id):
+    holding = db.session.get(Holding, holding_id)
+    if not holding:
+        return jsonify({'error': 'Holding not found'}), 404
+    if holding.portfolio.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify(holding.to_dict())
+
+
+@bp.route('/<int:holding_id>', methods=['PUT'])
+@token_required
+def update_holding_by_id(current_user, holding_id):
+    holding = db.session.get(Holding, holding_id)
+    if not holding:
+        return jsonify({'error': 'Holding not found'}), 404
+    if holding.portfolio.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json() or {}
+    if 'quantity' in data:
+        holding.quantity = Decimal(str(data['quantity']))
+    if 'average_cost' in data:
+        holding.average_cost = Decimal(str(data['average_cost']))
+    if 'total_cost' in data:
+        holding.total_cost = Decimal(str(data['total_cost']))
+    if 'currency' in data:
+        holding.currency = data['currency']
+    db.session.commit()
+    return jsonify(holding.to_dict())
+
+
+@bp.route('/<int:holding_id>', methods=['DELETE'])
+@token_required
+def delete_holding_by_id(current_user, holding_id):
+    holding = db.session.get(Holding, holding_id)
+    if not holding:
+        return jsonify({'error': 'Holding not found'}), 404
+    if holding.portfolio.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    db.session.delete(holding)
+    db.session.commit()
+    return '', 200
+
 @bp.route('/portfolio/<int:portfolio_id>/holding/<int:holding_id>', methods=['GET'])
 @token_required
 def get_holding(current_user, portfolio_id, holding_id):
@@ -60,23 +126,37 @@ def create_holding(current_user, portfolio_id):
     try:
         portfolio, _, error = get_portfolio_and_holding(current_user, portfolio_id)
         if error:
+            print(f"create_holding: auth error: {error}")
             return jsonify({'error': error[0]}), error[1]
         
         data = request.get_json()
+        print(f"create_holding: received data: {data}")
         if not data:
+            print("create_holding: no input data")
             return jsonify({"error": "No input data provided"}), 400
 
         # Add portfolio_id to data
         data['portfolio_id'] = portfolio_id
 
-        # Validate required fields
-        required_fields = ['security_id', 'platform_id', 'quantity', 'average_cost', 'currency']
+        # Validate required fields (platform_id can be derived from portfolio)
+        required_fields = ['security_id', 'quantity', 'average_cost', 'currency']
         for field in required_fields:
             if field not in data:
+                print(f"create_holding: missing field {field}")
                 return jsonify({"error": f"Missing required field: {field}"}), 400
 
-        quantity = Decimal(str(data['quantity']))
-        average_cost = Decimal(str(data['average_cost']))
+        # Derive platform_id from portfolio if not provided
+        if 'platform_id' not in data or not data.get('platform_id'):
+            data['platform_id'] = getattr(portfolio, 'platform_id', None)
+            if not data['platform_id']:
+                return jsonify({"error": "Platform id is required"}), 400
+
+        try:
+            quantity = Decimal(str(data['quantity']))
+            average_cost = Decimal(str(data['average_cost']))
+        except Exception as e:
+            print(f"create_holding: invalid numeric value: {e}")
+            return jsonify({"error": f"Invalid numeric value: {e}"}), 400
         total_cost = data.get('total_cost')
         if total_cost is None:
             total_cost = quantity * average_cost

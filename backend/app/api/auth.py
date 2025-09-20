@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 import redis
 import time
 
+# Reuse validation helpers from users module
+from app.api.users import validate_email, validate_password
+
 # Initialize Redis client
 import fakeredis
 import os
@@ -27,9 +30,14 @@ def rate_limit(key_prefix, limit=10, period=60):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # Skip rate limiting in test mode
-            if os.environ.get('FLASK_ENV') == 'testing':
-                return f(*args, **kwargs)
+            # Skip rate limiting in test mode (either FLASK_ENV or Flask TESTING config)
+            try:
+                if os.environ.get('FLASK_ENV') == 'testing' or current_app.config.get('TESTING'):
+                    return f(*args, **kwargs)
+            except Exception:
+                # If current_app isn't available, fallback to env var only
+                if os.environ.get('FLASK_ENV') == 'testing':
+                    return f(*args, **kwargs)
                 
             # Create a key using IP address and prefix
             key = f"{key_prefix}:{request.remote_addr}"
@@ -156,3 +164,34 @@ def change_password(current_user):
     current_user.set_password(new_password)
     db.session.commit()
     return jsonify({"message": "Password updated successfully"}), 200
+
+
+@bp.route('/register', methods=['POST'])
+def register():
+    """User registration endpoint used by integration tests."""
+    data = request.get_json(silent=True) or {}
+    required = ['username', 'email', 'password']
+    for k in required:
+        if k not in data:
+            return jsonify({'error': f'Missing required field: {k}'}), 400
+
+    # Basic validation
+    if not validate_email(data['email']):
+        return jsonify({'error': 'Invalid email format'}), 400
+    if not validate_password(data['password']):
+        return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+
+    # Check duplicates
+    existing = db.session.query(User).filter((User.username == data['username']) | (User.email == data['email'])).first()
+    if existing:
+        return jsonify({'error': 'Username or email already exists'}), 400
+
+    try:
+        user = User(username=data['username'], email=data['email'], first_name=data.get('first_name'), last_name=data.get('last_name'))
+        user.set_password(data['password'])
+        db.session.add(user)
+        db.session.commit()
+        return jsonify({'message': 'User created successfully', 'user': user.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

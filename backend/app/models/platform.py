@@ -7,8 +7,11 @@ class Platform(BaseModel):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    
+    __table_args__ = (db.UniqueConstraint('name', name='_platform_name_uc'),)
     account_type = db.Column(db.String(50), default=ACCOUNT_TYPES['GIA'])  # General Investment Account as default
     currency = db.Column(db.String(3), default=CURRENCY_CODES[2])  # GBP is third in CURRENCY_CODES
+    description = db.Column(db.String(255))
     trading_fee_fixed = db.Column(db.Numeric(10, 4), default=0)
     trading_fee_percentage = db.Column(db.Numeric(5, 4), default=0)
     fx_fee_percentage = db.Column(db.Numeric(5, 4), default=0)
@@ -18,6 +21,7 @@ class Platform(BaseModel):
     transactions = db.relationship('Transaction', back_populates='platform', lazy=True)
     holdings = db.relationship('Holding', back_populates='platform', lazy=True)
     dividends = db.relationship('Dividend', back_populates='platform', lazy=True)
+    portfolios = db.relationship('app.models.portfolio.Portfolio', back_populates='platform', lazy=True)
     
     def calculate_trading_fees(self, amount):
         """Calculate trading fees for a given transaction amount."""
@@ -58,10 +62,10 @@ class Platform(BaseModel):
         return {
             'id': self.id,
             'name': self.name,
-            'account_type': self.account_type,
-            'currency': self.currency,
-            'trading_fee_fixed': str(self.trading_fee_fixed),
-            'trading_fee_percentage': str(self.trading_fee_percentage),
-            'fx_fee_percentage': str(self.fx_fee_percentage),
-            'stamp_duty_applicable': self.stamp_duty_applicable
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+    def __repr__(self):
+        return f'<Platform {self.name}>'

@@ -22,6 +22,19 @@ def get_platform(id):
     except Exception as e:
         return jsonify({'error': 'Failed to get platform', 'details': str(e)}), 500
 
+
+@bp.route('/<int:id>/mappings', methods=['GET'])
+def platform_mappings(id):
+    try:
+        from app.models import SecurityMapping
+        platform = db.session.get(Platform, id)
+        if not platform:
+            return jsonify({'error': 'Platform not found'}), 404
+        mappings = SecurityMapping.query.filter_by(platform_id=id).all()
+        return jsonify([m.to_dict() for m in mappings])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/', methods=['POST'])
 def create_platform():
     try:

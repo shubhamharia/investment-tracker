@@ -28,6 +28,32 @@ backend/
 
 ## 🚀 Features
 
+## Backend Hardening & Test Reliability
+
+- All backend API endpoints now return robust status codes and JSON shapes matching integration tests.
+- Deterministic yfinance shim avoids network flakiness in CI and test runs.
+- Portfolio, transaction, and holding creation now accept compatibility keys and handle missing fields gracefully.
+- POST `/api/portfolios/<id>/dividends` endpoint added for dividend creation.
+- Portfolio value endpoint now includes `currency` key.
+- Platform normalization and cleanup scripts included for duplicate platform records.
+
+## Running Backend Tests in Docker Compose
+
+To run the full backend test suite inside Docker Compose:
+
+```bash
+cd investment-tracker
+docker-compose run --rm --entrypoint "" backend sh -c "cd /app && pytest -q"
+```
+
+To run a single test module:
+
+```bash
+docker-compose run --rm --entrypoint "" backend sh -c "cd /app && pytest tests/integration/test_api.py -q"
+```
+
+All integration tests should pass after the above hardening and fixes.
+
 ### 📊 Multi-Platform Portfolio Management
 - **Platform Support**: Trading212, Freetrade, Hargreaves Lansdown, AJ Bell
 - **Account Types**: ISA, GIA, LISA, SIPP

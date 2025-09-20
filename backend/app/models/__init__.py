@@ -4,6 +4,15 @@ from datetime import datetime
 class BaseModel(db.Model):
     __abstract__ = True
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __init__(self, *args, **kwargs):
+        # Ensure created_at and updated_at are identical on Python-side instantiation
+        # set created_at/updated_at to the same UTC value if not provided
+        now = kwargs.get('created_at') or kwargs.get('updated_at') or datetime.utcnow()
+        kwargs.setdefault('created_at', now)
+        kwargs.setdefault('updated_at', now)
+        super().__init__(*args, **kwargs)
 
     def validate(self):
         """Base validation method to be overridden by child classes."""

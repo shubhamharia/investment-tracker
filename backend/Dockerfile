@@ -27,8 +27,10 @@ RUN chmod +x docker-entrypoint.sh
 # Create directories for logs and data
 RUN mkdir -p /app/logs /app/data
 
-# Set environment variables
-ENV FLASK_APP=app.py
+# Set environment variables for production
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_ENV=production
+ENV FLASK_APP=app
 ENV PYTHONPATH=/app
 
 # Add entrypoint script
@@ -46,6 +48,7 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Default command
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Default command - use the copy in /usr/local/bin so bind mounts of /app don't
+# accidentally hide or remove the executable bit on the script from the image.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 

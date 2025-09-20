@@ -41,9 +41,16 @@ def get_transaction(current_user, id):
 @token_required
 def create_transaction(current_user):
     try:
-        data = request.get_json()
+        # Support delegation from portfolio-scoped route which may set request._cached_json
+        data = getattr(request, '_cached_json', None) or request.get_json()
         print(f"Received transaction data: {data}")
         
+        # Accept compatibility keys used by older clients/tests
+        if 'price' in data and 'price_per_share' not in data:
+            data['price_per_share'] = data['price']
+        if 'commission' in data and 'trading_fees' not in data:
+            data['trading_fees'] = data['commission']
+
         # Validate required fields
         required_fields = ['portfolio_id', 'security_id', 'transaction_type', 'quantity', 'price_per_share']
         for field in required_fields:
@@ -65,11 +72,13 @@ def create_transaction(current_user):
         if portfolio.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized: portfolio belongs to another user'}), 403
             
+        # Normalize transaction type
+        data['transaction_type'] = data['transaction_type'].upper()
         # Validate transaction type
         if data['transaction_type'] not in VALID_TRANSACTION_TYPES:
             return jsonify({'error': f'Invalid transaction type. Must be one of: {", ".join(VALID_TRANSACTION_TYPES)}'}), 400
             
-        # Validate currency
+        # Validate currency if present
         if 'currency' in data and data['currency'] not in CURRENCY_CODES:
             return jsonify({'error': f'Invalid currency code. Must be one of: {", ".join(CURRENCY_CODES)}'}), 400
             
@@ -84,13 +93,7 @@ def create_transaction(current_user):
         if portfolio.user_id != current_user.id:
             return jsonify({'error': 'Unauthorized: portfolio does not belong to current user'}), 403
         
-        # Validate transaction type
-        transaction_type = data['transaction_type'].upper()
-        print(f"Validating transaction type: {transaction_type}, valid types: {VALID_TRANSACTION_TYPES}")
-        if transaction_type not in VALID_TRANSACTION_TYPES:
-            return jsonify({
-                'error': f'Invalid transaction type: {transaction_type}. Valid types: {list(VALID_TRANSACTION_TYPES.keys())}'
-            }), 400
+        transaction_type = data['transaction_type']
         
         # Convert price and fees to Decimal
         try:
@@ -127,21 +130,26 @@ def create_transaction(current_user):
         except (ValueError, TypeError) as e:
             return jsonify({'error': f'Invalid transaction_date format: {str(e)}'}), 400
             
-        # Validate currency
-        if 'currency' not in data:
-            return jsonify({'error': 'Currency is required'}), 400
-        if data['currency'] not in CURRENCY_CODES:
+        # Validate currency: if not provided, derive from portfolio
+        if 'currency' not in data or not data['currency']:
+            data['currency'] = getattr(portfolio, 'currency', None) or getattr(portfolio, 'base_currency', None)
+        if not data['currency'] or data['currency'] not in CURRENCY_CODES:
             return jsonify({'error': f'Invalid currency code. Must be one of: {", ".join(CURRENCY_CODES)}'}), 400
-        # Currency must match portfolio's base currency
-        if data['currency'] != portfolio.base_currency:
-            return jsonify({'error': f'Transaction currency {data["currency"]} must match portfolio base currency {portfolio.base_currency}'}), 400
+        # Currency should match portfolio's currency when present
+        if getattr(portfolio, 'currency', None) and data['currency'] != getattr(portfolio, 'currency', None):
+            # allow mismatch only if portfolio doesn't have currency set
+            return jsonify({'error': f'Transaction currency {data["currency"]} must match portfolio currency {portfolio.currency}'}), 400
             
+        # If platform_id not provided, try to derive it from portfolio's platform
+        if 'platform_id' not in data or not data.get('platform_id'):
+            data['platform_id'] = getattr(portfolio, 'platform_id', None)
+
         # For SELL transactions, verify sufficient shares
-        if data['transaction_type'].upper() == 'SELL':
+        if data['transaction_type'] == 'SELL':
             holding = db.session.query(Holding).filter_by(
                 portfolio_id=data['portfolio_id'],
                 security_id=data['security_id'],
-                platform_id=data['platform_id']
+                platform_id=data.get('platform_id')
             ).first()
             
             if not holding or holding.quantity < quantity:
@@ -296,9 +304,7 @@ def delete_transaction(current_user, id):
         if holding:
             holding.calculate_values()
             db.session.commit()
-        
-        return '', 204
-        
+        return jsonify({'message': 'Transaction deleted'}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to delete transaction', 'details': str(e)}), 500

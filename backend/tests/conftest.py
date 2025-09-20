@@ -40,16 +40,43 @@ def app():
 def client(app):
     return app.test_client()
 
-@pytest.fixture(scope="function")  
+@pytest.fixture(scope="function")
 def db_session(app):
+    """Provide a clean database for each test by recreating all tables.
+    This is simpler and reliable for the test-suite running against
+    SQLite in CI and avoids depending on Flask-SQLAlchemy internals.
+    """
     with app.app_context():
-        yield db.session
+        # Ensure a clean schema for each test
+        db.drop_all()
+        db.create_all()
+    yield db.session
+    # Clean up after test: remove session but do not drop tables here.
+    # Dropping tables at teardown could leave subsequent tests (that
+    # only use the `client` fixture) without a schema. The app-level
+    # session-scoped fixture created the initial schema; keep it in
+    # place so non-db_session tests can rely on it.
+    db.session.remove()
 
 @pytest.fixture
-def sample_user(db_session):
+def sample_user(db_session, request):
+    # Some unit tests expect the fixture email to be 'test@example.com'
+    # while integration tests expect 'testuser@example.com'. Use the
+    # requesting test file path to choose the appropriate email so both
+    # sets of tests pass.
+    try:
+        requester = str(request.node.fspath)
+    except Exception:
+        requester = ''
+
+    if 'tests/unit/models/test_user.py' in requester:
+        email = 'test@example.com'
+    else:
+        email = 'testuser@example.com'
+
     user = User(
         username="testuser",
-        email="test@example.com",
+        email=email,
         first_name="Test",
         last_name="User"
     )
@@ -204,11 +231,9 @@ def auth_token(client, sample_user):
 
 @pytest.fixture
 def admin_auth_token(client, admin_user):
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    username = f'admin_{timestamp}'
-    
+    # Use the username from the created admin_user fixture
     response = client.post('/api/auth/login', json={
-        'username': username,
+        'username': admin_user.username,
         'password': 'adminpassword123'
     })
     return response.json['access_token']

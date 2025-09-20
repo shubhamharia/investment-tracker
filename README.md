@@ -34,6 +34,32 @@ investment-tracker/
 
 ## Quick Start with Docker 🐳
 
+## Backend Hardening & Test Reliability
+
+- All backend API endpoints now return robust status codes and JSON shapes matching integration tests.
+- Deterministic yfinance shim avoids network flakiness in CI and test runs.
+- Portfolio, transaction, and holding creation now accept compatibility keys and handle missing fields gracefully.
+- POST `/api/portfolios/<id>/dividends` endpoint added for dividend creation.
+- Portfolio value endpoint now includes `currency` key.
+- Platform normalization and cleanup scripts included for duplicate platform records.
+
+## Running Backend Tests in Docker Compose
+
+To run the full backend test suite inside Docker Compose:
+
+```bash
+cd investment-tracker
+docker-compose run --rm --entrypoint "" backend sh -c "cd /app && pytest -q"
+```
+
+To run a single test module:
+
+```bash
+docker-compose run --rm --entrypoint "" backend sh -c "cd /app && pytest tests/integration/test_api.py -q"
+```
+
+All integration tests should pass after the above hardening and fixes.
+
 ### 1. Clone and Setup
 ```bash
 git clone <repository-url>
@@ -228,9 +254,10 @@ cd investment-tracker
 
 # 2. Set up environment variables
 cp .env.example .env
-# Edit .env with your production values
+# IMPORTANT: edit `.env` and replace the placeholder secrets and passwords
+# with secure values before deploying to production. Never commit `.env`.
 
-# 3. Deploy
+# 3. Deploy (build and start services)
 docker-compose up -d --build
 
 # 4. Import data (if CSV available)
@@ -318,6 +345,11 @@ CORS_ORIGINS=*
 # Logging
 LOG_LEVEL=INFO
 ```
+
+Security notes:
+- Do not commit `.env` into version control. Use a secret manager for production.
+- Use strong random values for `SECRET_KEY` and `JWT_SECRET_KEY` (at least 32 bytes).
+- If running in public networks, restrict `CORS_ORIGINS` and use HTTPS via a reverse proxy (nginx or cloud load balancer).
 
 ## Features
 
