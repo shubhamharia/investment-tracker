@@ -159,29 +159,53 @@ def get_or_create_platform(platform_name):
     # Apply name standardization
     name = name_mappings.get(name, name)
     
-    platform = Platform.query.filter_by(name=name, account_type=account_type).first()
-    
-    if not platform:
-        # Set default fee structures based on platform
-        fee_config = {
-            'Trading212': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.15},
-            'Freetrade': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.45},
-            'HL': {'trading_fee_fixed': 11.95, 'fx_fee_percentage': 1.0},
-            'AJBELL': {'trading_fee_fixed': 9.95, 'fx_fee_percentage': 0.5}
-        }
-        
-        config = fee_config.get(name, {'trading_fee_fixed': 0, 'fx_fee_percentage': 0})
-        
-        platform = Platform(
-            name=name,
-            account_type=account_type,
-            trading_fee_fixed=config['trading_fee_fixed'],
-            fx_fee_percentage=config['fx_fee_percentage'],
-            stamp_duty_applicable=True  # UK platforms generally have stamp duty
-        )
-        db.session.add(platform)
+    # Query by name only because the `name` column is unique in the DB. This
+    # prevents trying to insert a platform with the same name but different
+    # account_type which would violate the uniqueness constraint.
+    platform = Platform.query.filter_by(name=name).first()
+
+    if platform:
+        # If we found an existing platform but account_type is missing and we
+        # have one parsed, try to set it.
+        if account_type and not platform.account_type:
+            platform.account_type = account_type
+            db.session.add(platform)
+            try:
+                db.session.flush()
+            except Exception:
+                db.session.rollback()
+        return platform
+
+    # Set default fee structures based on platform
+    fee_config = {
+        'Trading212': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.15},
+        'Freetrade': {'trading_fee_fixed': 0, 'fx_fee_percentage': 0.45},
+        'HL': {'trading_fee_fixed': 11.95, 'fx_fee_percentage': 1.0},
+        'AJBELL': {'trading_fee_fixed': 9.95, 'fx_fee_percentage': 0.5}
+    }
+
+    config = fee_config.get(name, {'trading_fee_fixed': 0, 'fx_fee_percentage': 0})
+
+    platform = Platform(
+        name=name,
+        account_type=account_type,
+        trading_fee_fixed=config['trading_fee_fixed'],
+        fx_fee_percentage=config['fx_fee_percentage'],
+        stamp_duty_applicable=True  # UK platforms generally have stamp duty
+    )
+    db.session.add(platform)
+    try:
         db.session.flush()
-    
+    except Exception:
+        # Likely a concurrent insert or race — rollback and return the existing
+        # platform by name.
+        db.session.rollback()
+        platform = Platform.query.filter_by(name=name).first()
+        if platform:
+            return platform
+        # If still missing, re-raise the exception
+        raise
+
     return platform
 
 def get_or_create_security(ticker, isin, currency, instrument_currency):
@@ -189,35 +213,44 @@ def get_or_create_security(ticker, isin, currency, instrument_currency):
     if pd.isna(ticker):
         return None
     
-    ticker = clean_ticker(ticker)
-    exchange = determine_exchange(ticker, None)
-    
-    # Try to find existing security
-    security = Security.query.filter_by(ticker=ticker, exchange=exchange).first()
-    
-    if not security:
-        # Determine instrument type
-        instrument_type = 'STOCK'  # Default
-        if any(keyword in ticker.upper() for keyword in ['ETF', 'FUND', 'INDEX']):
-            instrument_type = 'ETF'
-        
-        # Determine country from ticker/ISIN
-        country = 'GB'  # Default
-        if exchange == 'NASDAQ':
-            country = 'US'
-        
-        security = Security(
-            ticker=ticker,
-            isin=isin if not pd.isna(isin) else None,
-            exchange=exchange,
-            currency=instrument_currency if not pd.isna(instrument_currency) else currency,
-            instrument_type=instrument_type,
-            country=country,
-            yahoo_symbol=get_yahoo_symbol(ticker, exchange)
-        )
-        db.session.add(security)
+    symbol = clean_ticker(ticker)
+    exchange = determine_exchange(symbol, None)
+
+    # Try to find existing security by symbol (models use `symbol` column)
+    security = Security.query.filter_by(symbol=symbol, exchange=exchange).first()
+
+    if security:
+        return security
+
+    # Determine instrument type
+    instrument_type = 'STOCK'  # Default
+    if any(keyword in symbol.upper() for keyword in ['ETF', 'FUND', 'INDEX']):
+        instrument_type = 'ETF'
+
+    # Determine country from ticker/ISIN
+    country = 'GB'  # Default
+    if exchange == 'NASDAQ':
+        country = 'US'
+
+    security = Security(
+        symbol=symbol,
+        isin=isin if not pd.isna(isin) else None,
+        exchange=exchange,
+        currency=instrument_currency if not pd.isna(instrument_currency) else currency,
+        instrument_type=instrument_type,
+        country=country,
+        yahoo_symbol=get_yahoo_symbol(symbol, exchange)
+    )
+    db.session.add(security)
+    try:
         db.session.flush()
-    
+    except Exception:
+        db.session.rollback()
+        security = Security.query.filter_by(symbol=symbol, exchange=exchange).first()
+        if security:
+            return security
+        raise
+
     return security
 
 def calculate_fees(platform, gross_amount, currency, fx_rate):
@@ -294,9 +327,24 @@ def import_csv_data(csv_file_path):
         ).first()
 
         if not default_portfolio:
+            # Ensure there's a platform to attach the portfolio to. Some DB
+            # schemas require `platform_id` to be NOT NULL on portfolios.
+            default_platform = Platform.query.first()
+            if not default_platform:
+                default_platform = Platform(
+                    name='Imported',
+                    account_type='GIA',
+                    trading_fee_fixed=0,
+                    fx_fee_percentage=0,
+                    stamp_duty_applicable=False
+                )
+                db.session.add(default_platform)
+                db.session.flush()
+
             default_portfolio = _Portfolio(
                 name='Imported Transactions',
                 user_id=default_user.id,
+                platform_id=default_platform.id,
                 base_currency='GBP',
                 description='Auto-created portfolio for imported CSV transactions'
             )
@@ -453,6 +501,11 @@ def import_csv_data(csv_file_path):
         
         except Exception as e:
             print(f"Row {index}: Error importing transaction: {str(e)}")
+            # Roll back to clear the failed transaction so the next row can proceed
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             error_count += 1
             continue
     
@@ -480,20 +533,21 @@ def import_historical_prices_for_all_securities():
             
             if earliest_transaction:
                 start_date = earliest_transaction.transaction_date
-                print(f"Importing historical data for {security.ticker} from {start_date}")
+                # Security model uses `symbol` field (not `ticker`)
+                print(f"Importing historical data for {security.symbol} from {start_date}")
                 
                 # Queue the historical import task
                 try:
                     from app.tasks.celery_tasks import import_historical_data
                     task = import_historical_data.delay(security.id, start_date)
-                    print(f"Queued task {task.id} for {security.ticker}")
+                    print(f"Queued task {task.id} for {security.symbol}")
                 except ImportError:
-                    print(f"Celery not available, skipping historical import for {security.ticker}")
+                    print(f"Celery not available, skipping historical import for {security.symbol}")
                 except Exception as e:
-                    print(f"Error queuing task for {security.ticker}: {e}")
+                    print(f"Error queuing task for {security.symbol}: {e}")
             
         except Exception as e:
-            print(f"Error queuing historical import for {security.ticker}: {str(e)}")
+            print(f"Error queuing historical import for {security.symbol}: {str(e)}")
 
 def setup_initial_data():
     """Set up initial platform configurations"""
@@ -533,14 +587,29 @@ def setup_initial_data():
     ]
     
     for config in platform_configs:
-        existing = Platform.query.filter_by(
-            name=config['name'], 
-            account_type=config['account_type']
-        ).first()
-        
+        # Check for existing platform by name (some deployments may have
+        # platforms already inserted with a different account_type); the
+        # `name` column has a uniqueness constraint, so query by name to
+        # avoid attempting duplicate inserts which raise IntegrityError.
+        existing = Platform.query.filter_by(name=config['name']).first()
+
         if not existing:
-            platform = Platform(**config)
-            db.session.add(platform)
+            try:
+                platform = Platform(**config)
+                db.session.add(platform)
+                # flush so we surface any integrity errors early
+                db.session.flush()
+            except Exception:
+                # If another process/previous run inserted the same platform
+                # concurrently (or with a different account_type), rollback
+                # and continue using the existing record.
+                db.session.rollback()
+                existing = Platform.query.filter_by(name=config['name']).first()
+                if existing:
+                    # nothing more to do for this config
+                    continue
+                # re-raise if it's an unexpected error
+                raise
     
     db.session.commit()
     print("Initial platform configurations created")
@@ -613,10 +682,10 @@ def update_security_names():
     for security in securities:
         try:
             try:
-                ticker = yfinance.Ticker(security.yahoo_symbol or security.ticker)
+                ticker = yfinance.Ticker(security.yahoo_symbol or security.symbol)
                 info = ticker.info
             except Exception as e:
-                print(f"yfinance error for {security.ticker}: {e}")
+                print(f"yfinance error for {security.symbol}: {e}")
                 continue
 
             if not info:
@@ -633,7 +702,7 @@ def update_security_names():
             db.session.add(security)
 
         except Exception as e:
-            print(f"Error updating {getattr(security, 'ticker', 'unknown')}: {str(e)}")
+            print(f"Error updating {getattr(security, 'symbol', 'unknown')}: {str(e)}")
 
     try:
         db.session.commit()
@@ -659,7 +728,7 @@ def validate_data_integrity():
     
     # Check for transactions without current prices
     holdings_without_prices = db.session.query(
-        Security.ticker
+        Security.symbol
     ).join(Transaction).outerjoin(
         Security.price_history
     ).filter(
